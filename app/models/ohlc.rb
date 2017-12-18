@@ -14,16 +14,15 @@ class Ohlc < ApplicationRecord
 									   'ETC|USD' => 'XETCZUSD',
 									   'DASH|USD' => 'DASHUSD',
 									   'ZEC|USD' => 'XZECZUSD',
-									   'BCH|USD' => 'XBCHZUSD', }
+									   'BCH|USD' => 'BCHUSD', }
 		kraken_pair = kraken_pairs[pair]
 		api = URI("https://api.kraken.com/0/public/OHLC?pair=#{kraken_pair}")
 
 		exchange_id = Exchange.find_by(exchange_name: exchange).id
 		pair_id = Expair.find_by(pair_name: pair).id
 		
-		ap "Sending request #{exchange} #{pair}..."
+		ap "[#{Time.now}] Sending request #{exchange} #{pair}..."
 		response = JSON.parse(Net::HTTP.get(api))
-		ap "Processing request #{exchange} #{pair}..."
 
 		if response['error'].length == 0
 			ohlc_data = response['result'][kraken_pair]
@@ -46,7 +45,7 @@ class Ohlc < ApplicationRecord
 												 to_timestamp(#{timestamp}), to_timestamp(#{timestamp}))"
 			end
 
-			ap "Updating records #{exchange} #{pair}..."
+			#ap "Updating records #{exchange} #{pair}..."
 			ActiveRecord::Base.transaction do
 				ActiveRecord::Base.connection.execute(istr + entries.join(', ') + postfix)
 			end

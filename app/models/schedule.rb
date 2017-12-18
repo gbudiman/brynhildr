@@ -8,13 +8,19 @@ class Schedule
 			Kraken: {
 				pairs: ['XMR|USD', 'BTC|USD', 'XRP|USD', 
 								'LTC|USD', 'ETC|USD', 'DASH|USD', 
-								'ZEC_USD', 'BCH|USD']
+								'ZEC|USD', 'BCH|USD']
 			} 
 		}
 
 		@base_time = Time.now.to_i
 		@threads = []
 		ActiveRecord::Base.logger = nil
+
+		ap '###############################################'
+		ap '#                                             #'
+		ap '#   Brynhildr Scheduler                       #'
+		ap '#                                             #'
+		ap '###############################################'
 
 		@sdata.each do |exchange, _junk|
 			t = Thread.new { spawn_monitor exchange: exchange }
@@ -56,10 +62,10 @@ class Schedule
 			res = Ohlc.monitor exchange: exchange, pair: pair
 
 			if res != nil 
-				ap "Update success: #{exchange} #{pair} -> #{res} records total"
+				ap "[#{Time.now}] Update success: #{exchange} #{pair} -> #{res} records total"
 				break
 			else
-				ap "Update FAILED: #{exchange} #{pair}. Retrying in 10 seconds..."
+				ap "[#{Time.now}] Update FAILED: #{exchange} #{pair}. Retrying in 10 seconds..."
 				sleep(@@retry_delay)
 			end
 		end

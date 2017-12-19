@@ -16,3 +16,5 @@ Expair.create([{pair_name: 'BTC|USD'},
 							 {pair_name: 'ZEC|USD'},
 							 {pair_name: 'IOTA|USD'},
 							 {pair_name: 'BCH|USD'}])
+
+Exchange.create([{exchange_name: 'Bitfinex'}])

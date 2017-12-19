@@ -9,7 +9,12 @@ class Schedule
 				pairs: ['XMR|USD', 'BTC|USD', 'XRP|USD', 
 								'LTC|USD', 'ETC|USD', 'DASH|USD', 
 								'ZEC|USD', 'BCH|USD']
-			} 
+			},
+			Bitfinex: {
+				pairs: ['XMR|USD', 'BTC|USD', 'XRP|USD', 
+								'LTC|USD', 'ETC|USD', 'DASH|USD', 
+								'ZEC|USD', 'BCH|USD', 'IOTA|USD']
+			}
 		}
 
 		@base_time = Time.now.to_i
@@ -47,11 +52,10 @@ class Schedule
 			end
 
 			ap "Finished creating pair threads for #{exchange}"
+			sleep(@@exchange_cycle)
 			mthreads.each do |m|
 				m.join
 			end
-
-			sleep(@@exchange_cycle)
 		end
 	end
 
@@ -59,7 +63,7 @@ class Schedule
 		sleep(time_offset)
 
 		loop do
-			res = Ohlc.monitor exchange: exchange, pair: pair
+			res = Ohlc.monitor(exchange: exchange, pair: pair)
 
 			if res != nil 
 				ap "[#{Time.now}] Update success: #{exchange} #{pair} -> #{res} records total"

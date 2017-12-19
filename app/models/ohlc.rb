@@ -1,4 +1,7 @@
 class Ohlc < ApplicationRecord
+	belongs_to :exchange
+	belongs_to :expair
+
 	def self.monitor exchange:, pair:
 		case exchange
 		when :Kraken
@@ -100,5 +103,30 @@ class Ohlc < ApplicationRecord
 
 	def self.nuke_all!
 		ActiveRecord::Base.connection.execute('TRUNCATE ohlcs RESTART IDENTITY')
+	end
+
+	def self.get_csv exchange:, pair:
+		timestamp = Time.now.utc
+		filename = "#{timestamp}_#{exchange}_#{pair}.csv"
+		ohlc = Ohlc.joins(:exchange, :expair)
+							 .where('exchanges.exchange_name' => exchange)
+							 .where('expairs.pair_name' => pair)
+							 .select('exchanges.exchange_name AS exchange_name',
+							 				 'expairs.pair_name AS pair_name',
+							 				 'ohlcs.*')
+
+		as = ['Timestamp, Exchange, Pair, Open, High, Low, Close, Volume']
+		ohlc.each do |r|
+			a = [r.x_timestamp,
+					 r['exchange_name'],
+					 r['pair_name'],
+					 r['x_open'], r['x_high'], r['x_low'], r['x_close'], r['x_volume']]
+
+			as.push a.join(',')
+		end
+
+		File.open(Rails.root.join('dumps', filename), 'w') do |file|
+			file.write(as.join("\r\n"))
+		end
 	end
 end

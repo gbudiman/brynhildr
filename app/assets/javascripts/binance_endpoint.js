@@ -38,10 +38,12 @@ var GobbleParser = function() {
 }()
 
 var BinanceEndpoint = function() {
+	var stick_limit = 32
 	var dashboard_table = $('#dashboard-table')
 	var init_status = {};
 	var static_klines = {}
 	var ress = ['1m', '1h', '1d']
+	var last_latch = {}
 	var pairs = ['trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
 	//var pairs = ['trxeth', 'dnteth', 'xrpeth']
 	var layout = {
@@ -99,6 +101,7 @@ var BinanceEndpoint = function() {
 			$.each(pairs, function(_also_junk, pair) {
 				var gobble_parser = GobbleParser.build(resolution, pair)
 				streams.push(pair + '@kline_' + resolution)
+				last_latch[pair] = null
 
 				static_klines[resolution][pair] = {}
 				init_status[resolution][pair] = {
@@ -124,7 +127,7 @@ var BinanceEndpoint = function() {
 
 		var time_keys = Object.keys(x).sort()
 
-		$.each(time_keys, function(_junk, time_key) {
+		$.each(time_keys.slice(1), function(_junk, time_key) {
 			var data = x[time_key]
 
 			time.push(new Date(parseInt(time_key)))
@@ -133,6 +136,8 @@ var BinanceEndpoint = function() {
 			high.push(data.high)
 			low.push(data.low)
 		})
+
+		if (time_keys.length > stick_limit) delete x[time_keys[0]]
 
 		return {
 			x: time,
@@ -253,7 +258,7 @@ var BinanceEndpoint = function() {
 				data: {
 					interval: resolution,
 					symbol: pair.toUpperCase(),
-					limit: 64
+					limit: stick_limit
 					}
 				}).done(function(res) {
 					resolve(res)

@@ -11,6 +11,13 @@ var GobbleParser = function() {
 		return this
 	}
 
+	var build = function(_resolution, _pair) {
+		pair = _pair
+		resolution = _resolution
+
+		return this
+	}
+
 	var get_data = function() {
 		return {
 			pair: pair,
@@ -23,6 +30,7 @@ var GobbleParser = function() {
 	}
 
 	return {
+		build: build,
 		parse: parse,
 		get_data: get_data,
 		get_div_id: get_div_id
@@ -32,29 +40,41 @@ var GobbleParser = function() {
 var BinanceEndpoint = function() {
 	var dashboard_table = $('#dashboard-table')
 	var init_status = {};
+	var static_klines = {}
 	var ress = ['1m', '1h', '1d']
 	var pairs = ['trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
+	//var pairs = ['trxeth', 'dnteth', 'xrpeth']
 	var layout = {
 		showlegend: false,
+		margin: {
+			l: 0, r: 0, b: 16, t: 0, pad: 0
+		},
 		xaxis: {
 			autorange: true,
 			type: 'date',
-			tickformat: '%a %H:%M'
+			showgrid: true,
+			showticklabels: true,
+			rangeslider: {
+				visible: false
+			}
 		},
 		yaxis: {
 			autorage: true,
 			type: 'linear',
-			tickformat: ".8f"
+			//tickformat: ".8f"
+			showticklabels: false
 		},
 		autosize: false,
-		width: 600,
-		height: 300
+		width: 300,
+		height: 150,
+		dragmode: 'pan'
 	}
 	
 
 	var init = function() {
-		var socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=trxeth@kline_1m/dnteth@kline_1m')
-
+		append_dom()
+		var streams = preload_historical_data()
+		var socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams)
 		socket.onopen = function() {
 			console.log('Binance socket successfully opened')
 		}
@@ -65,7 +85,34 @@ var BinanceEndpoint = function() {
 
 		socket.onmessage = function(msg) {
 			update_kline(JSON.parse(msg.data))
+			update_static_kline()
 		}
+	}
+
+	var preload_historical_data = function() {
+		var streams = new Array()
+
+		$.each(ress, function(_junk, resolution) {
+			init_status[resolution] = {}
+			static_klines[resolution] = {}
+
+			$.each(pairs, function(_also_junk, pair) {
+				var gobble_parser = GobbleParser.build(resolution, pair)
+				streams.push(pair + '@kline_' + resolution)
+
+				static_klines[resolution][pair] = {}
+				init_status[resolution][pair] = {
+					init: false,
+					data: {}
+				}
+
+				get_historical_data(resolution, pair).then(function(data) {
+					append_historical_data(resolution, pair, data)
+				})
+			})
+		})
+
+		return streams.join('/')
 	}
 
 	var hash_to_array = function(x) {
@@ -111,21 +158,11 @@ var BinanceEndpoint = function() {
 		var close = msg.k.c
 		var high = msg.k.h
 		var low = msg.k.l
+		var trades = msg.k.n
 
 		var stream_data = gobble_parser.get_data()
 		var resolution = stream_data.resolution
 		var pair = stream_data.pair
-
-		if (init_status[resolution] == undefined) {
-			init_status[resolution] = {}
-		}
-		if (init_status[resolution][pair] == undefined) {
-			append_dom(gobble_parser.get_div_id())
-			init_status[resolution][pair] = {
-				init: false,
-				data: {}
-			}
-		}
 
 		var block = init_status[resolution][pair]
 		var ptr = block.data
@@ -133,21 +170,96 @@ var BinanceEndpoint = function() {
 		ptr[timestamp_start] = { open: open, high: high, low: low, close: close }
 		var trace = hash_to_array(ptr)
 
+		static_klines[resolution][pair] = {
+			open: open,
+			close: close,
+			trades: trades
+		}
+
 		//console.log(trace)
 		//console.log(time_start + ' (+' + delta + '): ' + open + ' | ' + high + ' | ' + low + ' | ' + close)
+		switch(resolution) {
+			case '1m': layout.xaxis.tickformat = '%H:%M'; break;
+			case '1h': layout.xaxis.tickformat = '%a'; break;
+			case '1d': layout.xaxis.tickformat = '%m/%d'; break;
+		}
 
-		if (init_status[resolution] != undefined && init_status[resolution][pair].init) {
-			Plotly.purge(gobble_parser.get_div_id())
-		} 
-		
-		Plotly.plot(gobble_parser.get_div_id(), [trace], layout)
-		block.init = true
+		Plotly.purge(gobble_parser.get_div_id())
+		Plotly.plot(gobble_parser.get_div_id(), [trace], layout, {displayModeBar: false})
+	}
+
+	var update_static_kline = function() {
+		$.each(static_klines, function(resolution, rdata) {
+			$.each(rdata, function(pair, pdata) {
+				var movement = $('#' + resolution + '-' + pair + '-movement')
+				var open = pdata.open
+
+				if (open == undefined) {
+					movement.text('Fetching stream...')
+				} else {
+					var close = pdata.close
+					var diff = (close - open) / open * 100
+					var volume = pdata.trades
+					//var volume = $('#' + resolution + '-' + pair + '-volume')
+
+					movement.text(open + ' -> ' + close + ' (' + diff.toFixed(2) + '%) [' + volume + ']')
+				}
+			})
+		})
 	}
 
 	var append_dom = function(x) {
-		dashboard_table
-		  .append('<div id=' + x + '></div>')
+		var s = ''
+
+		$.each(pairs, function(_junk, pair) {
+			s += '<div class="col-xs-12" id="row-' + pair + '">'
+				+    '<div class="col-xs-12">' + pair.toUpperCase() + '</div>'
+
+			$.each(ress, function(_junk, res) {
+				s += '<div class="col-xs-4" id="' + res + '-' + pair + '-movement"></div>'
+				//s += '<div class="col-xs-4" id="' + res + '-' + pair + '-volume"></div>'
+			})
+			
+			$.each(ress, function(_junk, res) {
+				s += '<div class="col-xs-4" id="kline-' + res + '-' + pair + '"></div>'
+			})		
+			s += '</div>'
+		})
+
+		dashboard_table.append(s)
 	}
+
+	var append_historical_data = function(resolution, pair, data) {
+		var anchor = init_status[resolution][pair].data
+
+		$.each(data, function(_junk, d) {
+			var time_key = d[0]
+			var open = d[1]
+			var high = d[2]
+			var low = d[3]
+			var close = d[4]
+			var volume = d[5]
+			var trades = d[6]
+
+			anchor[time_key] = { open: open, high: high, low: low, close: close }
+		})
+	}
+
+	var get_historical_data = function(resolution, pair) {
+		return new Promise(function(resolve, reject) {
+			$.ajax({
+				type: 'GET',
+				url: 'https://api.binance.com/api/v1/klines',
+				data: {
+					interval: resolution,
+					symbol: pair.toUpperCase(),
+					limit: 64
+					}
+				}).done(function(res) {
+					resolve(res)
+				})
+			})
+		}
 
 	return {
 		init: init

@@ -14,6 +14,11 @@ class Schedule
 				pairs: ['XMR|USD', 'BTC|USD', 'XRP|USD', 
 								'LTC|USD', 'ETC|USD', 'DASH|USD', 
 								'ZEC|USD', 'BCH|USD', 'IOTA|USD']
+			},
+			HitBTC: {
+				pairs: ['XMR|USD', 'BTC|USD', 'XRP|USD', 
+								'LTC|USD', 'ETC|USD', 'DASH|USD', 
+								'ZEC|USD', 'BCH|USD']
 			}
 		}
 

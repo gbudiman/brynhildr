@@ -18,3 +18,4 @@ Expair.create([{pair_name: 'BTC|USD'},
 							 {pair_name: 'BCH|USD'}])
 
 Exchange.create([{exchange_name: 'Bitfinex'}])
+Exchange.create([{exchange_name: 'HitBTC'}])

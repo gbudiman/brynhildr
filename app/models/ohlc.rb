@@ -8,7 +8,47 @@ class Ohlc < ApplicationRecord
 			pull_data_kraken exchange: exchange, pair: pair
 		when :Bitfinex
 			pull_data_bitfinex exchange: exchange, pair: pair
+		when :HitBTC
+			pull_data_hitbtc exchange: exchange, pair: pair
 		end
+	end
+
+	def self.pull_data_hitbtc exchange:, pair:
+		hb_pair = pair.gsub(/\|/, '')
+		api = URI("https://api.hitbtc.com/api/2/public/candles/#{hb_pair}?period=M1")
+		exchange_id = Exchange.find_by(exchange_name: exchange).id
+		pair_id = Expair.find_by(pair_name: pair).id
+
+		ap "[#{Time.now}] Sending request #{exchange} #{pair}..."
+
+		response = JSON.parse(Net::HTTP.get(api))
+
+		if response.length > 0
+			timestamp = Time.now.to_i
+			istr = 'INSERT INTO ohlcs (x_timestamp, 
+																 exchange_id, expair_id, 
+																 x_open, x_close, x_high, x_low,
+																 x_volume,
+																 created_at, updated_at) VALUES '
+			postfix = ' ON CONFLICT DO NOTHING'
+
+			entries = []
+			response.each do |a|
+				entries.append "(to_timestamp(#{Time.parse(a['timestamp']).to_i}),
+												 #{exchange_id}, #{pair_id},
+												 #{a['open']}, #{a['close']}, #{a['max']}, #{a['min']},
+												 #{a['volume']},
+												 to_timestamp(#{timestamp}), to_timestamp(#{timestamp}))"
+			end
+
+			ActiveRecord::Base.transaction do
+				ActiveRecord::Base.connection.execute(istr + entries.join(',') + postfix)
+			end
+		else
+			return nil
+		end
+
+		return Ohlc.where(exchange_id: exchange_id, expair_id: pair_id).count
 	end
 
 	def self.pull_data_bitfinex exchange:, pair:

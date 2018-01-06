@@ -33,6 +33,7 @@ gem 'jbuilder'
 # Use Capistrano for deployment
 # gem 'capistrano-rails', group: :development
 
+gem 'jquery-rails'
 gem 'haml-rails'
 gem 'awesome_print'
 gem 'rspec-rails'

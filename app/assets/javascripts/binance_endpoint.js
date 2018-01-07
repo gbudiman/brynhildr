@@ -140,20 +140,29 @@ var BinanceEndpoint = function() {
 		paper_bgcolor: 'rgba(0,0,0,0)',
 		plot_bgcolor: 'rgba(0,0,0,0)',
 	}
+	var candle_socket
+	var depth_socket
 	
+	var attach = function() {
+		return this
+	}
 
-	var init = function() {
+	var init = function(init_pairs) {
+		destroy_sockets()
+		pairs = init_pairs
+		$('.rowblock').hide()
 		cross_res_pair();
 		precompile_regex()
 		append_dom()
 		var streams = preload_historical_data()
-		var candle_socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams.klines)
+		
+		candle_socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams.klines)
 		candle_socket.onopen = function() {
 			console.log('Binance socket successfully opened')
 		}
 
 		candle_socket.onclose = function() {
-			alert('Binance socket closed. Please refresh this page')
+
 		}
 
 		candle_socket.onmessage = function(msg) {
@@ -161,7 +170,7 @@ var BinanceEndpoint = function() {
 			update_static_kline()
 		}
 
-		var depth_socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams.depths)
+		depth_socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams.depths)
 		depth_socket.onmessage = function(msg) {
 			update_depth(JSON.parse(msg.data))
 		}
@@ -173,6 +182,11 @@ var BinanceEndpoint = function() {
 
 		attach_resize()
 		chart_width = get_proper_chart_width()
+	}
+
+	var destroy_sockets = function() {
+		if (candle_socket != undefined) candle_socket.close()
+		if (depth_socket != undefined) depth_socket.close()
 	}
 
 	var attach_resize = function() {
@@ -406,11 +420,17 @@ var BinanceEndpoint = function() {
 			var equi_tether = close * fiat_tether.close
 			if (!isNaN(equi_tether)) {
 				$('#tether-' + pair).text('$' + equi_tether.toFixed(2))
+			} else {
+				$('#tether-' + pair).text('Calculating...')
 			}
 		} else if (fiats[pair] != undefined) {
 			var val = fiats[pair].close
 
-			if (!isNaN(val)) $('#tether-' + pair).text('$' + parseFloat(val).toFixed(2))
+			if (!isNaN(val)) {
+				$('#tether-' + pair).text('$' + parseFloat(val).toFixed(2))
+			} else {
+				$('#tether-' + pair).text('Calculating...')
+			}
 		}
 	}
 
@@ -424,6 +444,8 @@ var BinanceEndpoint = function() {
 
 				if (open == undefined) {
 					movement.text('Fetching stream...')
+					pctg.text('...')
+					volume_el.text('...')
 				} else {
 					var close = pdata.close
 					var diff = (close - open) / open * 100
@@ -449,10 +471,13 @@ var BinanceEndpoint = function() {
 	var append_dom = function(x) {
 		var colfig = 'colfig col-xs-12'
 		var s = ''
-		
+	
 		$.each(pairs, function(_junk, pair) {
-
-			s += '<div class="rowblock col-xs-12 col-md-6">'
+			if ($('#cell-' + pair).length != 0) {
+				$('#cell-' + pair).show()
+				return true
+			}
+			s += '<div class="rowblock col-xs-12 col-md-6" id="cell-' + pair + '">'
 		    +    '<div class="colfig col-xs-12">'
 				+      '<div class="col-xs-12 colfig pairtitle">'
 				+        '<span class="pairname">' + pair.toUpperCase() + '</span>&nbsp;'
@@ -550,6 +575,7 @@ var BinanceEndpoint = function() {
 	}
 
 	return {
+		attach: attach,
 		init: init
 	}
 }()

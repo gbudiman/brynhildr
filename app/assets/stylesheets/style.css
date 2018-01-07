@@ -88,3 +88,39 @@ div.colfig {
 .static-kline.volume:after {
 	content: ']';
 }
+
+.btn-group.bootstrap-select {
+	padding-top: 8px;
+}
+
+.dropdown-toggle.bs-placeholder, .dropdown-toggle.bs-placeholder:hover, .dropdown-toggle.bs-placeholder:active, .dropdown-toggle.bs-placeholder:focus, .open > .btn-default.dropdown-toggle, .open > .btn-default.dropdown-toggle:hover {
+	background-color: #333;
+	color: #333;
+}
+.dropdown-menu {
+	background-color: #333;
+}
+
+.dropdown-menu > .bs-searchbox > .form-control {
+	background-color: #333;
+	color: #eee;
+	border: 1px solid #eee;
+}
+
+.dropdown-menu.inner {
+	background-color: #333;
+	border: 1px solid #aaa;
+}
+
+.dropdown-menu.inner > li.no-results {
+	background-color: #333;
+	color: #eee;
+}
+
+.dropdown-menu.inner > li > a {
+	color: #eee;
+}
+
+.dropdown-menu.inner > li > a:hover {
+	background-color: #666;
+}

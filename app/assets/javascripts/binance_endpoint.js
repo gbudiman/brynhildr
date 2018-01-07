@@ -37,19 +37,48 @@ var GobbleParser = function() {
 	}
 }()
 
+var DepthParser = function() {
+	var pattern = /(\w+)\@depth/
+	var pair
+
+	var parse = function(x) {
+		var match = pattern.exec(x)
+		pair = match[1]
+
+		return this
+	}
+
+	var get_pair = function() { return pair }
+	var get_chart_id = function() { return 'depth-chart-' + pair }
+	var get_info_id = function() { return 'depth-info-' + pair}
+
+	return {
+		parse: parse,
+		get_chart_id: get_chart_id,
+		get_info_id: get_info_id,
+		get_pair: get_pair
+	}
+}()
+
 var BinanceEndpoint = function() {
 	var stick_limit = 32
 	var dashboard_table = $('#dashboard-table')
-	var init_status = {};
+	var init_status = {}
 	var static_klines = {}
+	var depths = {}
 	var ress = ['1m', '1h', '1d']
-	var last_latch = {}
 	var pairs = ['trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
 	//var pairs = ['trxeth', 'dnteth', 'xrpeth']
+	var chart_width = 250
+	var chart_height = 75
+	var tickfont = {
+		family: 'Exo, sans-serif',
+		size: 11
+	}
 	var layout = {
 		showlegend: false,
 		margin: {
-			l: 0, r: 0, b: 16, t: 0, pad: 0
+			l: 16, r: 16, b: 16, t: 0, pad: 0
 		},
 		xaxis: {
 			autorange: true,
@@ -58,41 +87,70 @@ var BinanceEndpoint = function() {
 			showticklabels: true,
 			rangeslider: {
 				visible: false
-			}
+			},
+			fixedrange: true,
+			tickfont: tickfont
 		},
 		yaxis: {
 			autorage: true,
 			type: 'linear',
 			//tickformat: ".8f"
-			showticklabels: false
+			showticklabels: false,
+			fixedrange: true
 		},
 		autosize: false,
-		width: 300,
-		height: 150,
-		dragmode: 'pan'
+		width: chart_width,
+		height: chart_height,
+		hovermode: false
+	}
+	var depth_layout = {
+		showlegend: false,
+		margin: {
+			l: 32, r: 16, b: 16, t: 16, pad: 0
+		},
+		xaxis: {
+			fixedrange: true,
+			autorange: true,
+			showticklabels: false,
+		},
+		yaxis: {
+			fixedrange: true,
+			autorange: true,
+			tickfont: tickfont
+		},
+		autosize: false,
+		width: chart_width,
+		height: chart_height,
+		hovermode: false
 	}
 	
 
 	var init = function() {
 		append_dom()
 		var streams = preload_historical_data()
-		var socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams)
-		socket.onopen = function() {
+		var candle_socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams.klines)
+		candle_socket.onopen = function() {
 			console.log('Binance socket successfully opened')
 		}
 
-		socket.onclose = function() {
+		candle_socket.onclose = function() {
 			alert('Binance socket closed. Please refresh this page')
 		}
 
-		socket.onmessage = function(msg) {
+		candle_socket.onmessage = function(msg) {
 			update_kline(JSON.parse(msg.data))
 			update_static_kline()
+		}
+
+		var depth_socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams.depths)
+		depth_socket.onmessage = function(msg) {
+			update_depth(JSON.parse(msg.data))
 		}
 	}
 
 	var preload_historical_data = function() {
 		var streams = new Array()
+		var depths = {}
 
 		$.each(ress, function(_junk, resolution) {
 			init_status[resolution] = {}
@@ -101,7 +159,7 @@ var BinanceEndpoint = function() {
 			$.each(pairs, function(_also_junk, pair) {
 				var gobble_parser = GobbleParser.build(resolution, pair)
 				streams.push(pair + '@kline_' + resolution)
-				last_latch[pair] = null
+				depths[pair + '@depth20'] = true
 
 				static_klines[resolution][pair] = {}
 				init_status[resolution][pair] = {
@@ -115,7 +173,10 @@ var BinanceEndpoint = function() {
 			})
 		})
 
-		return streams.join('/')
+		return {
+			klines: streams.join('/'),
+			depths: Object.keys(depths).join('/')
+		}
 	}
 
 	var hash_to_array = function(x) {
@@ -147,8 +208,62 @@ var BinanceEndpoint = function() {
 			open: open,
 			type: 'candlestick',
 			xaxis: 'x',
-			yaxis: 'y'
+			yaxis: 'y',
+			increasing: { line: {color: '#49A862'}},
+			decreasing: { line: {color: '#DC4C48' }}
 		}
+	}
+
+	var update_depth = function(msg) {
+		var depth_header = DepthParser.parse(msg.stream)
+		var pair = depth_header.pair
+
+		var bids = msg.data.bids
+		var asks = msg.data.asks
+
+		var ask_cum = 0
+		var ask_depth = { x:[], y:[] }
+		$.each(asks, function(_junk, ask) {
+			var x_point = parseFloat(ask[0])
+			var y_point = parseFloat(ask[1])
+			ask_cum += y_point
+
+			ask_depth.x.push(x_point)
+			ask_depth.y.push(ask_cum)
+		})
+
+		var bid_cum = 0
+		var bid_depth = { x:[], y:[] }
+		$.each(bids, function(_junk, bid) {
+			var x_point = parseFloat(bid[0])
+			var y_point = parseFloat(bid[1])
+			bid_cum += y_point
+
+			bid_depth.x.push(x_point)
+			bid_depth.y.push(bid_cum)
+		})
+
+		var ask_trace = {
+			x: ask_depth.x,
+			y: ask_depth.y,
+			fill: 'tozeroy',
+			type: 'scatter',
+			line: {color: '#DC4C48'}
+		}
+		var bid_trace = {
+			x: bid_depth.x,
+			y: bid_depth.y,
+			fill: 'tozeroy',
+			type: 'scatter',
+			line: {color: '#49A862'}
+		}
+
+		var min_range = bids[0][0]
+		var max_range = asks[0][0]
+
+		$('#' + depth_header.get_info_id()).text(min_range + ' <-> ' + max_range)
+		Plotly.purge(depth_header.get_chart_id())
+		Plotly.plot(depth_header.get_chart_id(), [ask_trace, bid_trace], depth_layout, {displayModeBar: false})
 	}
 
 	var update_kline = function(_msg) {
@@ -197,6 +312,7 @@ var BinanceEndpoint = function() {
 		$.each(static_klines, function(resolution, rdata) {
 			$.each(rdata, function(pair, pdata) {
 				var movement = $('#' + resolution + '-' + pair + '-movement')
+				var pctg = $('#pctg-' + resolution + '-' + pair)
 				var open = pdata.open
 
 				if (open == undefined) {
@@ -207,7 +323,14 @@ var BinanceEndpoint = function() {
 					var volume = pdata.trades
 					//var volume = $('#' + resolution + '-' + pair + '-volume')
 
-					movement.text(open + ' -> ' + close + ' (' + diff.toFixed(2) + '%) [' + volume + ']')
+					movement.text(open + ' -> ' + close + ' [' + volume + ']')
+					pctg.text(diff.toFixed(2) + '%')
+
+					if (diff < 0) {
+						pctg.addClass('negative')
+					} else {
+						pctg.removeClass('negative')
+					}
 				}
 			})
 		})
@@ -217,16 +340,26 @@ var BinanceEndpoint = function() {
 		var s = ''
 
 		$.each(pairs, function(_junk, pair) {
-			s += '<div class="col-xs-12" id="row-' + pair + '">'
-				+    '<div class="col-xs-12">' + pair.toUpperCase() + '</div>'
+			s += '<div class="col-xs-12 rowblock" id="row-' + pair + '">'
+				+    '<div class="col-xs-3 pairname">' + pair.toUpperCase() + '</div>'
+				// +    '<div class="col-xs-3 header-span">1 min</div>'
+				// +    '<div class="col-xs-3 header-span">1 hour</div>'
+				// +    '<div class="col-xs-3 header-span">1 day</div>'
 
 			$.each(ress, function(_junk, res) {
-				s += '<div class="col-xs-4" id="' + res + '-' + pair + '-movement"></div>'
+				s +=   '<div class="col-xs-3 header-span" id="pctg-' + res + '-' + pair + '"></div>'
+			})
+			s	+=	 '<div class="row"></div>'
+
+			s +=   '<div class="col-xs-3" id="depth-info-' + pair + '"></div>'
+			$.each(ress, function(_junk, res) {
+				s += '<div class="col-xs-3" id="' + res + '-' + pair + '-movement"></div>'
 				//s += '<div class="col-xs-4" id="' + res + '-' + pair + '-volume"></div>'
 			})
 			
+			s +=   '<div class="col-xs-3" id="depth-chart-' + pair + '"></div>'
 			$.each(ress, function(_junk, res) {
-				s += '<div class="col-xs-4" id="kline-' + res + '-' + pair + '"></div>'
+				s += '<div class="col-xs-3" id="kline-' + res + '-' + pair + '"></div>'
 			})		
 			s += '</div>'
 		})
@@ -253,18 +386,24 @@ var BinanceEndpoint = function() {
 	var get_historical_data = function(resolution, pair) {
 		return new Promise(function(resolve, reject) {
 			$.ajax({
+				crossDomain: true,
 				type: 'GET',
 				url: 'https://api.binance.com/api/v1/klines',
 				data: {
 					interval: resolution,
 					symbol: pair.toUpperCase(),
 					limit: stick_limit
-					}
-				}).done(function(res) {
-					resolve(res)
-				})
+				}
+			}).done(function(res) {
+				resolve(res)
 			})
-		}
+
+		})
+	}
+
+	var fns = function() {
+
+	}
 
 	return {
 		init: init

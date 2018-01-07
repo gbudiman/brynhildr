@@ -1,6 +1,14 @@
+%nav{class: 'navbar navbar-default'}
+	%div{class: 'container-fluid navbar-container'}
+		%a{class: 'navbar-brand navbar-brand-main', 'data-toggle': 'dropdown', href: '#'} 
+			Brynhildr
+
 %div{id: 'dashboard-table'}
 
+= stylesheet_link_tag 'style.css'
 = javascript_include_tag 'plotly-latest.min'
+= javascript_include_tag 'sha256.min'
+= javascript_include_tag 'xdomain.min'
 = javascript_include_tag 'binance_endpoint'
 :javascript
 	$(document).ready(function() {

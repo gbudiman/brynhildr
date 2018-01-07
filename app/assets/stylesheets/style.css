@@ -1,0 +1,34 @@
+body {
+  font-family: 'Exo', sans-serif;
+  font-size: 12px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.pairname {
+	font-weight: bold;
+	font-size: 175%;
+}
+
+.header-span {
+	text-align: center;
+	font-weight: bold;
+	font-size: 175%;
+}
+
+.negative {
+	color: red;
+}
+
+div.col-xs-3 {
+	padding: 0px 4px;
+}
+
+.navbar.navbar-default {
+	border-radius: 0px;
+	font-weight: bold;
+}
+
+.rowblock {
+	margin-bottom: 15px;
+}

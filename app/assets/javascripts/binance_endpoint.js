@@ -68,8 +68,8 @@ var BinanceEndpoint = function() {
 	var static_klines = {}
 	var depths = {}
 	var ress = ['1m', '1h', '1d']
-	//var pairs = ['trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
-	var pairs = ['trxeth', 'dnteth', 'xrpeth']
+	var pairs = ['trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
+	//var pairs = ['trxeth', 'dnteth', 'xrpeth']
 	var fiat_pattern = ['eth', 'btc']
 	var fiat_compiled = new Array()
 	var fiats = { btcusdt: {},
@@ -368,11 +368,14 @@ var BinanceEndpoint = function() {
 
 					movement.text(open + ' -> ' + close + ' [' + volume + ']')
 					pctg.text(diff.toFixed(2) + '%')
+					var dp = pctg
 
 					if (diff < 0) {
 						pctg.addClass('negative')
+						dp.removeClass('bg-positive').addClass('bg-negative')
 					} else {
 						pctg.removeClass('negative')
+						dp.addClass('bg-positive').removeClass('bg-negative')
 					}
 				}
 			})

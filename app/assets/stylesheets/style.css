@@ -40,3 +40,11 @@ div.col-xs-3 {
 	text-align: right;
 	padding-right: 8px;
 }
+
+.bg-positive {
+	background-color: #B4CB65
+}
+
+.bg-negative {
+	background-color: #EC9DAE
+}

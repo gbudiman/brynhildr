@@ -3,6 +3,8 @@ body {
   font-size: 12px;
   margin-left: auto;
   margin-right: auto;
+  background-color: #333;
+  color: #eee;
 }
 
 .pairname, .equitether {
@@ -20,17 +22,23 @@ body {
 	color: red;
 }
 
-div.col-xs-3 {
+div.colfig {
+	padding: 0px;
+}
+
+.colfig > span {
 	padding: 0px 4px;
 }
 
-.navbar.navbar-default {
-	border-radius: 0px;
-	font-weight: bold;
+.rowblock {
+	border: 1px solid #aaa;
+	border-radius: 4px;
+	padding: 0px 4px;
 }
 
-.rowblock {
-	margin-bottom: 15px;
+.navbar.navbar-inverse {
+	border-radius: 0px;
+	font-weight: bold;
 }
 
 .footer {
@@ -42,9 +50,13 @@ div.col-xs-3 {
 }
 
 .bg-positive {
-	background-color: #B4CB65
+	background-color: transparent;
 }
 
 .bg-negative {
 	background-color: #EC9DAE
+}
+
+.equitether {
+	padding-right: 4px;
 }

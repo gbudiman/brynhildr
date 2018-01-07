@@ -68,22 +68,25 @@ var BinanceEndpoint = function() {
 	var static_klines = {}
 	var depths = {}
 	var ress = ['1m', '1h', '1d']
-	var pairs = ['trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
-	//var pairs = ['trxeth', 'dnteth', 'xrpeth']
-	var fiat_pattern = ['eth', 'btc']
+	//var pairs = ['trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
+	var pairs = ['trxeth', 'ethusdt', 'xrpeth', 'ltcusdt']
+	var chart_dict = new Array()
+	var fiat_pattern = ['eth', 'btc', 'ltc']
 	var fiat_compiled = new Array()
 	var fiats = { btcusdt: {},
 								ethusdt: {} }
-	var chart_width = 250
+	var chart_width = 200
 	var chart_height = 75
+	var linecolor = '#aaa'
 	var tickfont = {
 		family: 'Exo, sans-serif',
-		size: 11
+		size: 11,
+		color: '#eee'
 	}
 	var layout = {
 		showlegend: false,
 		margin: {
-			l: 16, r: 16, b: 16, t: 0, pad: 0
+			l: 8, r: 8, b: 16, t: 0, pad: 0
 		},
 		xaxis: {
 			autorange: true,
@@ -94,19 +97,23 @@ var BinanceEndpoint = function() {
 				visible: false
 			},
 			fixedrange: true,
-			tickfont: tickfont
+			tickfont: tickfont,
+			gridcolor: linecolor
 		},
 		yaxis: {
 			autorage: true,
 			type: 'linear',
 			//tickformat: ".8f"
 			showticklabels: false,
-			fixedrange: true
+			fixedrange: true,
+			gridcolor: linecolor
 		},
 		autosize: false,
 		width: chart_width,
 		height: chart_height,
-		hovermode: false
+		hovermode: false,
+		paper_bgcolor: 'rgba(0,0,0,0)',
+		plot_bgcolor: 'rgba(0,0,0,0)',
 	}
 	var depth_layout = {
 		showlegend: false,
@@ -117,20 +124,25 @@ var BinanceEndpoint = function() {
 			fixedrange: true,
 			autorange: true,
 			showticklabels: false,
+			gridcolor: linecolor
 		},
 		yaxis: {
 			fixedrange: true,
 			autorange: true,
-			tickfont: tickfont
+			tickfont: tickfont,
+			gridcolor: linecolor
 		},
 		autosize: false,
 		width: chart_width,
 		height: chart_height,
-		hovermode: false
+		hovermode: false,
+		paper_bgcolor: 'rgba(0,0,0,0)',
+		plot_bgcolor: 'rgba(0,0,0,0)',
 	}
 	
 
 	var init = function() {
+		cross_res_pair();
 		precompile_regex()
 		append_dom()
 		var streams = preload_historical_data()
@@ -157,6 +169,35 @@ var BinanceEndpoint = function() {
 		fiat_socket.onmessage = function(msg) {
 			update_fiats(JSON.parse(msg.data))
 		}
+
+		attach_resize()
+		chart_width = get_proper_chart_width()
+	}
+
+	var attach_resize = function() {
+		$(window).on('resize', resize)
+	}
+
+	var get_proper_chart_width = function() {
+		return ($('.rowblock').width() - 32) / ($(window).width() < 992 ? 2 : 4)
+	}
+
+	var resize = function() {
+		chart_width = get_proper_chart_width()
+		$.each(chart_dict, function(_junk, id) {
+			Plotly.relayout(id, { width: chart_width })
+		})
+	}
+
+	var cross_res_pair = function() {
+		chart_dict = new Array()
+
+		$.each(pairs, function(_junk, pair) {
+			chart_dict.push('depth-chart-' + pair)
+			$.each(ress, function(_also_junk, res) {
+				chart_dict.push('kline-' + res + '-' + pair)
+			})
+		})
 	}
 
 	var precompile_regex = function() {
@@ -292,6 +333,7 @@ var BinanceEndpoint = function() {
 
 		$('#' + depth_header.get_info_id() + '-min').text(min_range)
 		$('#' + depth_header.get_info_id() + '-max').text(max_range)
+		depth_layout.width = chart_width
 		Plotly.purge(depth_header.get_chart_id())
 		Plotly.plot(depth_header.get_chart_id(), [ask_trace, bid_trace], depth_layout, {displayModeBar: false})
 	}
@@ -334,7 +376,7 @@ var BinanceEndpoint = function() {
 			case '1d': layout.xaxis.tickformat = '%m/%d'; break;
 		}
 
-		
+		layout.width = chart_width
 		Plotly.purge(gobble_parser.get_div_id())
 		Plotly.plot(gobble_parser.get_div_id(), [trace], layout, {displayModeBar: false})
 
@@ -347,6 +389,10 @@ var BinanceEndpoint = function() {
 			if (!isNaN(equi_tether)) {
 				$('#tether-' + pair).text('$' + equi_tether.toFixed(2))
 			}
+		} else if (fiats[pair] != undefined) {
+			var val = fiats[pair].close
+
+			if (!isNaN(val)) $('#tether-' + pair).text('$' + parseFloat(val).toFixed(2))
 		}
 	}
 
@@ -384,33 +430,60 @@ var BinanceEndpoint = function() {
 
 	var append_dom = function(x) {
 		var s = ''
+		var colfig = 'colfig col-xs-6 col-md-3'
 
+		
 		$.each(pairs, function(_junk, pair) {
-			s += '<div class="col-xs-12 rowblock" id="row-' + pair + '">'
-				+    '<div class="col-xs-3">' 
-				+ 		 '<span class="pairname">' + pair.toUpperCase() + '</span>&nbsp;' 
-				+      '<span class="equitether pull-right" id="tether-' + pair + '"/>'
-				+    '</div>'
+		// 	s += '<div class="col-xs-12 rowblock" id="row-' + pair + '">'
+		// 		+    '<div class="col-xs-6 col-sm-3">' 
+		// 		+ 		 '<span class="pairname">' + pair.toUpperCase() + '</span>&nbsp;' 
+		// 		+      '<span class="equitether pull-right" id="tether-' + pair + '"/>'
+		// 		+    '</div>'
 
-			$.each(ress, function(_junk, res) {
-				s +=   '<div class="col-xs-3 header-span" id="pctg-' + res + '-' + pair + '"></div>'
-			})
-			s	+=	 '<div class="row"></div>'
-			s +=   '<div class="col-xs-3">'
-				+      '<span id="depth-info-' + pair + '-max" class="pull-right"/>'
-				+      '<span id="depth-info-' + pair + '-min"/>'
-				+    '</div>'
+		// 	$.each(ress, function(_junk, res) {
+		// 		s +=   '<div class="col-xs-6 col-sm-3 header-span" id="pctg-' + res + '-' + pair + '"></div>'
+		// 	})
+		// 	s	+=	 '<div class="row"></div>'
+		// 	s +=   '<div class="col-xs-6 col-sm-3">'
+		// 		+      '<span id="depth-info-' + pair + '-max" class="pull-right"/>'
+		// 		+      '<span id="depth-info-' + pair + '-min"/>'
+		// 		+    '</div>'
 
-			$.each(ress, function(_junk, res) {
-				s += '<div class="col-xs-3" id="' + res + '-' + pair + '-movement"></div>'
-			})
+		// 	$.each(ress, function(_junk, res) {
+		// 		s += '<div class="col-xs-6 col-sm-3" id="' + res + '-' + pair + '-movement"></div>'
+		// 	})
 			
-			s +=   '<div class="col-xs-3" id="depth-chart-' + pair + '"></div>'
-			$.each(ress, function(_junk, res) {
-				s += '<div class="col-xs-3" id="kline-' + res + '-' + pair + '"></div>'
-			})		
-			s += '</div>'
+		// 	s +=   '<div class="col-xs-6 col-sm-3" id="depth-chart-' + pair + '"></div>'
+		// 	$.each(ress, function(_junk, res) {
+		// 		s += '<div class="col-xs-6 col-sm-3" id="kline-' + res + '-' + pair + '"></div>'
+		// 	})		
+		// 	s += '</div>'
+		// })
+			s += '<div class="rowblock col-xs-12">'
+		    +    '<div class="' + colfig + '">'
+				+      '<div class="col-xs-12 colfig">'
+				+        '<span class="pairname">' + pair.toUpperCase() + '</span>&nbsp;'
+				+  			 '<span class="equitether pull-right" id="tether-' + pair + '"/>'
+				+      '</div>'
+				+      '<div class="col-xs-12 colfig">'
+				+        '<span id="depth-info-' + pair + '-max" class="pull-right" />'
+				+        '<span id="depth-info-' + pair + '-min" />'
+				+      '</div>'
+				+      '<div class="col-xs-12 colfig" id="depth-chart-' + pair + '" />'
+				+    '</div>'
+
+			$.each(ress, function(_also_junk, res) {
+				s += '<div class="' + colfig + '">'
+					+    '<div class="col-xs-12 colfig header-span" id="pctg-' + res + '-' + pair + '"/>'
+					+    '<div class="col-xs-12 colfig">'
+					+      '<span id="' + res + '-' + pair + '-movement"/>'
+					+    '</div>'
+					+    '<div class="col-xs-12 colfig" id="kline-' + res + '-' + pair + '" />'
+					+  '</div>'
+			})
+			s += '</div><div class="col-xs-12"/>'
 		})
+		
 
 		dashboard_table.append(s)
 	}

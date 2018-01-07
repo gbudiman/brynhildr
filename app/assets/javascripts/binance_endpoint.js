@@ -65,10 +65,11 @@ var BinanceEndpoint = function() {
 	var hard_limit = 100
 	var dashboard_table = $('#dashboard-table')
 	var init_status = {}
+	var init_depth = {}
 	var static_klines = {}
 	var depths = {}
 	var ress = ['1m', '1h', '1d']
-	var pairs = ['ethusdt', 'btcusdt', 'ltceth', 'trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
+	var pairs = ['ethusdt', 'ltceth', 'trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
 	//var pairs = ['trxeth', 'ethusdt', 'xrpeth', 'ltcbtc']
 	var chart_dict = new Array()
 	var fiat_pattern = ['eth', 'btc', 'ltc']
@@ -207,6 +208,7 @@ var BinanceEndpoint = function() {
 	}
 
 	var preload_historical_data = function() {
+		init_depth = {}
 		var streams = new Array()
 		var depths = {}
 		$.each(ress, function(_junk, resolution) {
@@ -223,6 +225,7 @@ var BinanceEndpoint = function() {
 					init: false,
 					data: {}
 				}
+				init_depth[pair] = false
 
 				get_historical_data(resolution, pair).then(function(data) {
 					append_historical_data(resolution, pair, data)
@@ -329,13 +332,18 @@ var BinanceEndpoint = function() {
 		}
 
 		var min_range = bids[0][0]
-		var max_range = asks[0][0]
+		var max_range = asks[asks.length - 1][0]
 
 		$('#' + depth_header.get_info_id() + '-min').text(min_range)
 		$('#' + depth_header.get_info_id() + '-max').text(max_range)
 		depth_layout.width = chart_width
 		Plotly.purge(depth_header.get_chart_id())
-		Plotly.plot(depth_header.get_chart_id(), [ask_trace, bid_trace], depth_layout, {displayModeBar: false})
+		if (init_depth[pair]) {
+			Plotly.plot(depth_header.get_chart_id(), [ask_trace, bid_trace], depth_layout, {displayModeBar: false})
+		} else {
+			Plotly.restyle(depth_header.get_chart_id(), [ask_trace, bid_trace])
+			init_depth[pair] = true
+		}
 	}
 
 	var update_kline = function(_msg) {
@@ -377,13 +385,22 @@ var BinanceEndpoint = function() {
 		}
 
 		layout.width = chart_width
-		Plotly.purge(gobble_parser.get_div_id())
-		Plotly.plot(gobble_parser.get_div_id(), [trace], layout, {displayModeBar: false})
+		if (init_status[resolution][pair].init) {
+			Plotly.restyle(gobble_parser.get_div_id(), 'open', [trace.open])
+			Plotly.restyle(gobble_parser.get_div_id(), 'high', [trace.high])
+			Plotly.restyle(gobble_parser.get_div_id(), 'low', [trace.low])
+			Plotly.restyle(gobble_parser.get_div_id(), 'close', [trace.close])
+			Plotly.restyle(gobble_parser.get_div_id(), 'x', [trace.x])
+		} else {
+			Plotly.plot(gobble_parser.get_div_id(), [trace], layout, {displayModeBar: false})
+			init_status[resolution][pair].init = true
+		}
+
+		$('#closevalue-' + pair).text(close)
 
 		var fiat_pair = get_fiat_quote_pair(pair)
 		if (fiat_pair) {
 			var fiat_tether = fiats[fiat_pair + 'usdt']
-			//console.log(fiat_pair)
 
 			var equi_tether = close * fiat_tether.close
 			if (!isNaN(equi_tether)) {
@@ -410,9 +427,7 @@ var BinanceEndpoint = function() {
 					var diff = (close - open) / open * 100
 					var volume = pdata.trades
 
-					//console.log(fiats)
-
-					movement.text(open + ' -> ' + close + ' [' + volume + ']')
+					movement.text('Last ' + resolution + ': ' + open + ' [' + volume + ']')
 					pctg.text(diff.toFixed(2) + '%')
 					var dp = pctg
 
@@ -461,9 +476,10 @@ var BinanceEndpoint = function() {
 		// })
 			s += '<div class="rowblock col-xs-12">'
 		    +    '<div class="' + colfig + '">'
-				+      '<div class="col-xs-12 colfig">'
+				+      '<div class="col-xs-12 colfig pairtitle">'
 				+        '<span class="pairname">' + pair.toUpperCase() + '</span>&nbsp;'
-				+  			 '<span class="equitether pull-right" id="tether-' + pair + '"/>'
+				+  			 '<span class="currentprice pull-right" id="closevalue-' + pair + '"/>'
+				//+  			 '<span class="equitether pull-right" id="tether-' + pair + '"/>'
 				+      '</div>'
 				+      '<div class="col-xs-12 colfig">'
 				+        '<span id="depth-info-' + pair + '-max" class="pull-right" />'

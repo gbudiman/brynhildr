@@ -19,7 +19,12 @@ body {
 }
 
 .negative {
-	color: red;
+	color: #D4826A;
+}
+
+.pairtitle {
+	background-color: #ccc;
+	color: #333;
 }
 
 div.colfig {
@@ -32,8 +37,8 @@ div.colfig {
 
 .rowblock {
 	border: 1px solid #aaa;
-	border-radius: 4px;
-	padding: 0px 4px;
+	//border-radius: 4px;
+	padding: 0px 0px;
 }
 
 .navbar.navbar-inverse {
@@ -54,9 +59,15 @@ div.colfig {
 }
 
 .bg-negative {
-	background-color: #EC9DAE
+	background-color: transparent;
 }
 
 .equitether {
 	padding-right: 4px;
+}
+
+.currentprice {
+	padding-right: 4px;
+	font-weight: normal;
+	font-size: 175%;
 }

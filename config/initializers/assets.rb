@@ -13,6 +13,5 @@ Rails.application.config.assets.paths << Rails.root.join('node_modules')
 # folder are already added.
 Rails.application.config.assets.precompile += %w( binance_endpoint.js
 																									plotly-latest.min.js
-																									sha256.min.js
-																									xdomain.min.js
+																									sprintf.min.js
 																									style.css )

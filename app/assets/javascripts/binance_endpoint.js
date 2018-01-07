@@ -106,7 +106,7 @@ var BinanceEndpoint = function() {
 	var depth_layout = {
 		showlegend: false,
 		margin: {
-			l: 32, r: 16, b: 16, t: 16, pad: 0
+			l: 32, r: 16, b: 8, t: 8, pad: 0
 		},
 		xaxis: {
 			fixedrange: true,

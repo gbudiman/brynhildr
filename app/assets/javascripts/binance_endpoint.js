@@ -69,8 +69,8 @@ var BinanceEndpoint = function() {
 	var static_klines = {}
 	var depths = {}
 	var ress = ['1m', '1h', '1d']
-	var pairs = ['ethusdt', 'ltceth', 'trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
-	//var pairs = ['trxeth', 'ethusdt', 'xrpeth', 'ltcbtc']
+	//var pairs = ['ethusdt', 'ltceth', 'trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
+	var pairs = ['trxeth', 'ethusdt', 'xrpeth', 'ltcbtc']
 	var chart_dict = new Array()
 	var fiat_pattern = ['eth', 'btc', 'ltc']
 	var fiat_compiled = new Array()
@@ -119,7 +119,7 @@ var BinanceEndpoint = function() {
 	var depth_layout = {
 		showlegend: false,
 		margin: {
-			l: 32, r: 16, b: 8, t: 8, pad: 0
+			l: 32, r: 0, b: 8, t: 8, pad: 0
 		},
 		xaxis: {
 			fixedrange: true,
@@ -180,11 +180,12 @@ var BinanceEndpoint = function() {
 	}
 
 	var get_proper_chart_width = function() {
-		return ($('.rowblock').width() - 32) / ($(window).width() < 992 ? 2 : 4)
+		return ($('.rowblock').width() - 32) / ($(window).width() < 992 ? 2 : 2)
 	}
 
 	var resize = function() {
 		chart_width = get_proper_chart_width()
+		console.log(chart_dict)
 		$.each(chart_dict, function(_junk, id) {
 			Plotly.relayout(id, { width: chart_width })
 		})
@@ -417,6 +418,7 @@ var BinanceEndpoint = function() {
 		$.each(static_klines, function(resolution, rdata) {
 			$.each(rdata, function(pair, pdata) {
 				var movement = $('#' + resolution + '-' + pair + '-movement')
+				var volume_el = $('#' + resolution + '-' + pair + '-volume')
 				var pctg = $('#pctg-' + resolution + '-' + pair)
 				var open = pdata.open
 
@@ -427,7 +429,8 @@ var BinanceEndpoint = function() {
 					var diff = (close - open) / open * 100
 					var volume = pdata.trades
 
-					movement.text('Last ' + resolution + ': ' + open + ' [' + volume + ']')
+					movement.text(resolution + ': ' + open)
+					volume_el.text(volume)
 					pctg.text(diff.toFixed(2) + '%')
 					var dp = pctg
 
@@ -444,60 +447,48 @@ var BinanceEndpoint = function() {
 	}
 
 	var append_dom = function(x) {
+		var colfig = 'colfig col-xs-12'
 		var s = ''
-		var colfig = 'colfig col-xs-6 col-md-3'
-
 		
 		$.each(pairs, function(_junk, pair) {
-		// 	s += '<div class="col-xs-12 rowblock" id="row-' + pair + '">'
-		// 		+    '<div class="col-xs-6 col-sm-3">' 
-		// 		+ 		 '<span class="pairname">' + pair.toUpperCase() + '</span>&nbsp;' 
-		// 		+      '<span class="equitether pull-right" id="tether-' + pair + '"/>'
-		// 		+    '</div>'
 
-		// 	$.each(ress, function(_junk, res) {
-		// 		s +=   '<div class="col-xs-6 col-sm-3 header-span" id="pctg-' + res + '-' + pair + '"></div>'
-		// 	})
-		// 	s	+=	 '<div class="row"></div>'
-		// 	s +=   '<div class="col-xs-6 col-sm-3">'
-		// 		+      '<span id="depth-info-' + pair + '-max" class="pull-right"/>'
-		// 		+      '<span id="depth-info-' + pair + '-min"/>'
-		// 		+    '</div>'
-
-		// 	$.each(ress, function(_junk, res) {
-		// 		s += '<div class="col-xs-6 col-sm-3" id="' + res + '-' + pair + '-movement"></div>'
-		// 	})
-			
-		// 	s +=   '<div class="col-xs-6 col-sm-3" id="depth-chart-' + pair + '"></div>'
-		// 	$.each(ress, function(_junk, res) {
-		// 		s += '<div class="col-xs-6 col-sm-3" id="kline-' + res + '-' + pair + '"></div>'
-		// 	})		
-		// 	s += '</div>'
-		// })
-			s += '<div class="rowblock col-xs-12">'
-		    +    '<div class="' + colfig + '">'
+			s += '<div class="rowblock col-xs-12 col-md-6">'
+		    +    '<div class="colfig col-xs-12">'
 				+      '<div class="col-xs-12 colfig pairtitle">'
 				+        '<span class="pairname">' + pair.toUpperCase() + '</span>&nbsp;'
 				+  			 '<span class="currentprice pull-right" id="closevalue-' + pair + '"/>'
-				//+  			 '<span class="equitether pull-right" id="tether-' + pair + '"/>'
+				
 				+      '</div>'
-				+      '<div class="col-xs-12 colfig">'
-				+        '<span id="depth-info-' + pair + '-max" class="pull-right" />'
-				+        '<span id="depth-info-' + pair + '-min" />'
-				+      '</div>'
-				+      '<div class="col-xs-12 colfig" id="depth-chart-' + pair + '" />'
-				+    '</div>'
+				+      '<div class="col-xs-6 colfig">'
+				+        '<div class="col-xs-12 colfig" id="depth-chart-' + pair + '" />'				
+				+        '<div class="col-xs-12 colfig">'
+				+          '<span id="depth-info-' + pair + '-max" class="pull-right" />'
+				+          '<span id="depth-info-' + pair + '-min" />'
+				+        '</div>'
+
 
 			$.each(ress, function(_also_junk, res) {
-				s += '<div class="' + colfig + '">'
-					+    '<div class="col-xs-12 colfig header-span" id="pctg-' + res + '-' + pair + '"/>'
-					+    '<div class="col-xs-12 colfig">'
-					+      '<span id="' + res + '-' + pair + '-movement"/>'
-					+    '</div>'
-					+    '<div class="col-xs-12 colfig" id="kline-' + res + '-' + pair + '" />'
-					+  '</div>'
+				//s +=     '<div class="col-xs-12 colfig header-span" id="pctg-' + res + '-' + pair + '"/>'
+				s +=     '<div class="col-xs-12 colfig">'
+					+        '<span id="' + res + '-' + pair + '-movement" class="static-kline"/>'
+					+        '<span id="' + res + '-' + pair + '-volume" class="static-kline bold volume"/>'
+					+        '<span id="pctg-' + res + '-' + pair + '" class="pull-right static-kline bold" />'
+					+      '</div>'
 			})
-			s += '</div><div class="col-xs-12"/>'
+
+			s +=       '<div class="col-xs-12 colfig">'
+				+          '<span class="static-kline">USDT Equivalent</span>'
+			  +    			 '<span class="static-kline bold pull-right" id="tether-' + pair + '"/>'
+			  +        '</div>'
+			s	+=     '</div>'
+				+      '<div class="col-xs-6 colfig">'
+				
+			$.each(ress, function(_also_junk, res) {
+				s	+=     '<div class="col-xs-12 colfig" id="kline-' + res + '-' + pair + '" />'
+			})
+			s +=     '</div>'
+			s +=   '</div>'
+			s += '</div>'
 		})
 		
 

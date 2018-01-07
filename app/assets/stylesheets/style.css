@@ -71,3 +71,20 @@ div.colfig {
 	font-weight: normal;
 	font-size: 175%;
 }
+
+.static-kline {
+	font-family: 'Inconsolata', monospace;
+	font-size: 125%;
+}
+
+.static-kline.bold {
+	font-weight: bold
+}
+
+.static-kline.volume:before {
+	content: '[';
+}
+
+.static-kline.volume:after {
+	content: ']';
+}

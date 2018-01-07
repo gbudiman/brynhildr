@@ -68,8 +68,8 @@ var BinanceEndpoint = function() {
 	var static_klines = {}
 	var depths = {}
 	var ress = ['1m', '1h', '1d']
-	//var pairs = ['trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
-	var pairs = ['trxeth', 'ethusdt', 'xrpeth', 'ltcusdt']
+	var pairs = ['ethusdt', 'btcusdt', 'ltceth', 'trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
+	//var pairs = ['trxeth', 'ethusdt', 'xrpeth', 'ltcbtc']
 	var chart_dict = new Array()
 	var fiat_pattern = ['eth', 'btc', 'ltc']
 	var fiat_compiled = new Array()
@@ -77,7 +77,7 @@ var BinanceEndpoint = function() {
 								ethusdt: {} }
 	var chart_width = 200
 	var chart_height = 75
-	var linecolor = '#aaa'
+	var linecolor = '#555'
 	var tickfont = {
 		family: 'Exo, sans-serif',
 		size: 11,

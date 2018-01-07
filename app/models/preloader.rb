@@ -7,4 +7,10 @@ class Preloader < ApplicationRecord
 
 		return open(endpoint).read
 	end
+
+	def self.get_exchange_info
+		endpoint = @public_api_endpoint + "/api/v1/exchangeInfo"
+
+		return open(endpoint).read
+	end
 end

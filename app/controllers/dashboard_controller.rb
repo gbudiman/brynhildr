@@ -5,4 +5,8 @@ class DashboardController < ApplicationController
 
 		render json: Preloader.preload(pair: pair, resolution: resolution)
 	end
+
+	def get_exchange_info
+		render json: Preloader.get_exchange_info
+	end
 end

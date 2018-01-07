@@ -4,12 +4,10 @@
 			%a{class: 'navbar-brand navbar-brand-main', 'data-toggle': 'dropdown', href: '#'} 
 				Brynhildr
 		%select{class: 'selectpicker pull-right', id: 'multibox', 'data-live-search': 'true', multiple: true}
-			%option ETHUSDT
-			%option XMRETH
-			%option ZECETH
-			%option LTCBTC
 
 %div{id: 'dashboard-table'}
+%div{class: 'row'}
+%div{class: 'well well-lg', id: 'welcome-well'}
 
 = stylesheet_link_tag 'style'
 = stylesheet_link_tag 'bootstrap-select.min'

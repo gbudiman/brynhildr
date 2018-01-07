@@ -1,6 +1,7 @@
 var Multibox = function() {
 	var endpoint_ref
 	var box = $('#multibox')
+	var well = $('#welcome-well')
 
 	var get_pairs = function() {
 		return ['trxeth', 'ethusdt']
@@ -33,13 +34,16 @@ var Multibox = function() {
 			if (existing_pairs != undefined) {
 				box.selectpicker('val', existing_pairs.map(x => x.toUpperCase()))
 				endpoint_ref.init(existing_pairs)
+				well.hide()
+			} else {
+				well.text('Please select trading pairs from the top right box').show()
 			}
 		})
 	}
 
 	var init = function(ref) {
 		endpoint_ref = ref
-		
+		well.text('Handshaking with exchange...')
 		box.on('changed.bs.select', update_endpoint)
 
 		get_exchange_pairs()
@@ -50,6 +54,9 @@ var Multibox = function() {
 		var pairs = box.selectpicker('val')
 		if (pairs != null) {
 			pairs = pairs.map(x => x.toLowerCase()).sort()
+			well.hide()
+		} else {
+			well.text('Please select trading pairs from the top right box').show()
 		}
 
 		$.jStorage.set('pairs', pairs)

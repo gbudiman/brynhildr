@@ -124,3 +124,10 @@ div.colfig {
 .dropdown-menu.inner > li > a:hover {
 	background-color: #666;
 }
+
+#welcome-well {
+	background-color: #333;
+	color: #eee;
+	font-size: 200%;
+	text-align: center
+}

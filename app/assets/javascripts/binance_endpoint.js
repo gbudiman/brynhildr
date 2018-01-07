@@ -481,7 +481,7 @@ var BinanceEndpoint = function() {
 		    +    '<div class="colfig col-xs-12">'
 				+      '<div class="col-xs-12 colfig pairtitle">'
 				+        '<span class="pairname">' + pair.toUpperCase() + '</span>&nbsp;'
-				+  			 '<span class="currentprice pull-right" id="closevalue-' + pair + '"/>'
+				+  			 '<span class="currentprice pull-right" id="closevalue-' + pair + '">...</span>'
 				
 				+      '</div>'
 				+      '<div class="col-xs-6 colfig">'

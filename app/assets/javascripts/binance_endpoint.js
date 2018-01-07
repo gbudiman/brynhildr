@@ -62,13 +62,18 @@ var DepthParser = function() {
 
 var BinanceEndpoint = function() {
 	var stick_limit = 32
+	var hard_limit = 100
 	var dashboard_table = $('#dashboard-table')
 	var init_status = {}
 	var static_klines = {}
 	var depths = {}
 	var ress = ['1m', '1h', '1d']
-	var pairs = ['trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
-	//var pairs = ['trxeth', 'dnteth', 'xrpeth']
+	//var pairs = ['trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
+	var pairs = ['trxeth', 'dnteth', 'xrpeth']
+	var fiat_pattern = ['eth', 'btc']
+	var fiat_compiled = new Array()
+	var fiats = { btcusdt: {},
+								ethusdt: {} }
 	var chart_width = 250
 	var chart_height = 75
 	var tickfont = {
@@ -126,6 +131,7 @@ var BinanceEndpoint = function() {
 	
 
 	var init = function() {
+		precompile_regex()
 		append_dom()
 		var streams = preload_historical_data()
 		var candle_socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams.klines)
@@ -146,12 +152,22 @@ var BinanceEndpoint = function() {
 		depth_socket.onmessage = function(msg) {
 			update_depth(JSON.parse(msg.data))
 		}
+
+		var fiat_socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=!ticker@arr')
+		fiat_socket.onmessage = function(msg) {
+			update_fiats(JSON.parse(msg.data))
+		}
+	}
+
+	var precompile_regex = function() {
+		$.each(fiat_pattern, function(_junk, pattern) {
+			fiat_compiled.push(new RegExp('(' + pattern + ')$'))
+		})
 	}
 
 	var preload_historical_data = function() {
 		var streams = new Array()
 		var depths = {}
-
 		$.each(ress, function(_junk, resolution) {
 			init_status[resolution] = {}
 			static_klines[resolution] = {}
@@ -173,10 +189,23 @@ var BinanceEndpoint = function() {
 			})
 		})
 
+
 		return {
 			klines: streams.join('/'),
-			depths: Object.keys(depths).join('/')
+			depths: Object.keys(depths).join('/'),
 		}
+	}
+
+	var update_fiats = function(msgs) {
+		$.each(msgs.data, function(_junk, msg) {
+			var symbol = msg.s.toLowerCase()
+
+			if (fiats[symbol] != undefined) {
+				var ref = fiats[symbol]
+				var close = msg.c
+				ref.close = close
+			}
+		})
 	}
 
 	var hash_to_array = function(x) {
@@ -188,7 +217,7 @@ var BinanceEndpoint = function() {
 
 		var time_keys = Object.keys(x).sort()
 
-		$.each(time_keys.slice(1), function(_junk, time_key) {
+		$.each(time_keys.slice(-1 * stick_limit), function(_junk, time_key) {
 			var data = x[time_key]
 
 			time.push(new Date(parseInt(time_key)))
@@ -198,7 +227,7 @@ var BinanceEndpoint = function() {
 			low.push(data.low)
 		})
 
-		if (time_keys.length > stick_limit) delete x[time_keys[0]]
+		if (time_keys.length > hard_limit) delete x[time_keys[0]]
 
 		return {
 			x: time,
@@ -261,7 +290,8 @@ var BinanceEndpoint = function() {
 		var min_range = bids[0][0]
 		var max_range = asks[0][0]
 
-		$('#' + depth_header.get_info_id()).text(min_range + ' <-> ' + max_range)
+		$('#' + depth_header.get_info_id() + '-min').text(min_range)
+		$('#' + depth_header.get_info_id() + '-max').text(max_range)
 		Plotly.purge(depth_header.get_chart_id())
 		Plotly.plot(depth_header.get_chart_id(), [ask_trace, bid_trace], depth_layout, {displayModeBar: false})
 	}
@@ -304,8 +334,20 @@ var BinanceEndpoint = function() {
 			case '1d': layout.xaxis.tickformat = '%m/%d'; break;
 		}
 
+		
 		Plotly.purge(gobble_parser.get_div_id())
 		Plotly.plot(gobble_parser.get_div_id(), [trace], layout, {displayModeBar: false})
+
+		var fiat_pair = get_fiat_quote_pair(pair)
+		if (fiat_pair) {
+			var fiat_tether = fiats[fiat_pair + 'usdt']
+			//console.log(fiat_pair)
+
+			var equi_tether = close * fiat_tether.close
+			if (!isNaN(equi_tether)) {
+				$('#tether-' + pair).text('$' + equi_tether.toFixed(2))
+			}
+		}
 	}
 
 	var update_static_kline = function() {
@@ -321,7 +363,8 @@ var BinanceEndpoint = function() {
 					var close = pdata.close
 					var diff = (close - open) / open * 100
 					var volume = pdata.trades
-					//var volume = $('#' + resolution + '-' + pair + '-volume')
+
+					//console.log(fiats)
 
 					movement.text(open + ' -> ' + close + ' [' + volume + ']')
 					pctg.text(diff.toFixed(2) + '%')
@@ -341,20 +384,22 @@ var BinanceEndpoint = function() {
 
 		$.each(pairs, function(_junk, pair) {
 			s += '<div class="col-xs-12 rowblock" id="row-' + pair + '">'
-				+    '<div class="col-xs-3 pairname">' + pair.toUpperCase() + '</div>'
-				// +    '<div class="col-xs-3 header-span">1 min</div>'
-				// +    '<div class="col-xs-3 header-span">1 hour</div>'
-				// +    '<div class="col-xs-3 header-span">1 day</div>'
+				+    '<div class="col-xs-3">' 
+				+ 		 '<span class="pairname">' + pair.toUpperCase() + '</span>&nbsp;' 
+				+      '<span class="equitether pull-right" id="tether-' + pair + '"/>'
+				+    '</div>'
 
 			$.each(ress, function(_junk, res) {
 				s +=   '<div class="col-xs-3 header-span" id="pctg-' + res + '-' + pair + '"></div>'
 			})
 			s	+=	 '<div class="row"></div>'
+			s +=   '<div class="col-xs-3">'
+				+      '<span id="depth-info-' + pair + '-max" class="pull-right"/>'
+				+      '<span id="depth-info-' + pair + '-min"/>'
+				+    '</div>'
 
-			s +=   '<div class="col-xs-3" id="depth-info-' + pair + '"></div>'
 			$.each(ress, function(_junk, res) {
 				s += '<div class="col-xs-3" id="' + res + '-' + pair + '-movement"></div>'
-				//s += '<div class="col-xs-4" id="' + res + '-' + pair + '-volume"></div>'
 			})
 			
 			s +=   '<div class="col-xs-3" id="depth-chart-' + pair + '"></div>'
@@ -383,26 +428,42 @@ var BinanceEndpoint = function() {
 		})
 	}
 
-	var get_historical_data = function(resolution, pair) {
-		return new Promise(function(resolve, reject) {
-			$.ajax({
-				crossDomain: true,
-				type: 'GET',
-				url: 'https://api.binance.com/api/v1/klines',
-				data: {
-					interval: resolution,
-					symbol: pair.toUpperCase(),
-					limit: stick_limit
-				}
-			}).done(function(res) {
-				resolve(res)
-			})
+	var get_fiat_quote_pair = function(pair) {
+		var match_found = false;
+		$.each(fiat_compiled, function(_junk, compiled) {
+			var match = pair.match(compiled)
+			if (match) {
+				match_found = match[1]
+				return false
+			}
+		}) 
 
-		})
+		return match_found
 	}
 
-	var fns = function() {
+	var get_historical_data = function(resolution, pair) {
+		var core_func = function() {
 
+			return new Promise(function(resolve, reject) {
+				$.ajax({
+					crossDomain: true,
+					type: 'GET',
+					//url: 'https://api.binance.com/api/v1/klines',
+					url: '/preload_candlestick',
+					data: {
+						interval: resolution,
+						symbol: pair.toUpperCase()
+					}
+				}).done(function(res) {
+					resolve(res)
+				}).fail(function() {
+					console.log('get_historical_data failure. Retrying...')
+					resolve(core_func())
+				})
+			})
+		}
+
+		return core_func()
 	}
 
 	return {

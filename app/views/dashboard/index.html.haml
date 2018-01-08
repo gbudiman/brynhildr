@@ -3,7 +3,7 @@
 		%div{class: 'navbar-header'}
 			%a{class: 'navbar-brand navbar-brand-main', 'data-toggle': 'dropdown', href: '#'} 
 				Brynhildr
-		%select{class: 'selectpicker pull-right', id: 'multibox', 'data-live-search': 'true', multiple: true}
+			%select{class: 'selectpicker pull-right', id: 'multibox', 'data-live-search': 'true', multiple: true}
 
 %div{id: 'dashboard-table'}
 %div{class: 'row'}
@@ -21,4 +21,6 @@
 	$(document).ready(function() {
 		var endpoint = BinanceEndpoint.attach()
 		var multibox = Multibox.init(endpoint)
+
+		endpoint.register_multibox(multibox)
 	})

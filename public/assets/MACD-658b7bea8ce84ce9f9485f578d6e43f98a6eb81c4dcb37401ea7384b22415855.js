@@ -100,3 +100,4 @@ function MACD(close_prices, _timestamps, _period, stick_length) {
 
 	
 
+;

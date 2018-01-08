@@ -15088,6 +15088,8 @@ var BinanceEndpoint = function() {
 		var bids = msg.data.bids
 		var asks = msg.data.asks
 
+		console.log(msg.data)
+
 		var ask_cum = 0
 		var ask_depth = { x:[], y:[] }
 		$.each(asks, function(_junk, ask) {
@@ -15118,8 +15120,8 @@ var BinanceEndpoint = function() {
 			line: {color: '#DC4C48'}
 		}
 		var bid_trace = {
-			x: bid_depth.x,
-			y: bid_depth.y,
+			x: bid_depth.x.reverse(),
+			y: bid_depth.y.reverse(),
 			fill: 'tozeroy',
 			type: 'scatter',
 			line: {color: '#49A862'}
@@ -15127,6 +15129,13 @@ var BinanceEndpoint = function() {
 
 		var min_range = bids[0][0]
 		var max_range = asks[asks.length - 1][0]
+
+		// console.log('bids')
+		// console.log(bid_trace)
+		// console.log('asks')
+		// console.log(ask_trace)
+		var z_data = [bid_trace, ask_trace]
+		//console.log(z_data)
 
 		$('#' + depth_header.get_info_id() + '-min').text(min_range)
 		$('#' + depth_header.get_info_id() + '-max').text(max_range)
@@ -15140,14 +15149,14 @@ var BinanceEndpoint = function() {
 			}
 			Plotly.purge(depth_header.get_chart_id())
 			Plotly.plot(depth_header.get_chart_id(), 
-									[bid_trace, ask_trace], 
+									z_data, 
 									depth_layout, {displayModeBar: false}).then(function() {
 				perf_depth.complete_render(pair)
 				render_delay(pair)
 			})
 		} else {
 			Plotly.plot(depth_header.get_chart_id(), 
-									[bid_trace, ask_trace], 
+									z_data, 
 									depth_layout, {displayModeBar: false}).then(function() {
 				perf_depth.complete_render(pair)
 			})

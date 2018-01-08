@@ -14707,6 +14707,65 @@ var Multibox = function() {
 	}
 }()
 ;
+var PerformanceMetric = function() {
+	var data = {}
+
+	var init = function(pairs) {
+		data = {}
+
+		$.each(pairs, function(_junk, pair) {
+			data[pair] = {
+				total_delay: 0,
+				total_samples: 0,
+				is_rendered: true,
+				last_render_timestamp: Date.now(),
+				drop_count: 0
+			}
+		})
+
+		return this
+	}
+
+	var has_been_rendered = function(pair) {
+		// Once called, caller must immediately begin render process
+		// as the flag is cleared and timestamped
+		var ret = data[pair].is_rendered
+
+		if (ret) {
+			data[pair].last_render_timestamp = Date.now()
+			data[pair].is_rendered = false
+		}
+
+		return ret
+	}
+
+
+	var complete_render = function(pair, resolution) {
+		var p = data[pair]
+		var now = Date.now()
+		var delta = now - p.last_render_timestamp
+		p.is_rendered = true
+		p.total_delay += delta
+		p.total_samples++
+
+		return p.total_delay / p.total_samples
+	}
+
+	var record_drop = function(pair) {
+		data[pair].drop_count++
+	}
+
+	return {
+		init: init,
+		complete_render: complete_render,
+		has_been_rendered: has_been_rendered,
+		record_drop: record_drop,
+		get_drop_count: function(pair) { return data[pair].drop_count },
+		get_total_delay: function(pair) { return data[pair].total_delay },
+		get_total_samples: function(pair) { return data[pair].total_samples}
+	}
+}()
+;
 var GobbleParser = function() {
 	var pattern = /(\w+)\@kline\_(\w+)/
 	var pair
@@ -14782,12 +14841,16 @@ var BinanceEndpoint = function() {
 	//var pairs = ['ethusdt', 'ltceth', 'trxeth', 'dnteth', 'xrpeth', 'xmreth', 'zeceth', 'veneth', 'lendeth', 'xlmeth']
 	var pairs = ['trxeth', 'ethusdt', 'xrpeth', 'ltcbtc']
 	var chart_dict = new Array()
-	var fiat_pattern = ['eth', 'btc', 'ltc']
+	var fiat_pattern = ['eth', 'btc']
 	var fiat_compiled = new Array()
 	var fiats = { btcusdt: {},
 								ethusdt: {} }
 	var chart_width = 200
 	var chart_height = 75
+	var perf_candlestick_1m
+	var perf_candlestick_1h
+	var perf_candlestick_1d
+	var perf_depth
 	var linecolor = '#555'
 	var tickfont = {
 		family: 'Exo, sans-serif',
@@ -14864,6 +14927,10 @@ var BinanceEndpoint = function() {
 	var init = function(init_pairs) {
 		destroy_sockets()
 		pairs = init_pairs
+		perf_depth = PerformanceMetric.init(pairs)
+		perf_candlestick_1m = PerformanceMetric.init(pairs)
+		perf_candlestick_1h = PerformanceMetric.init(pairs)
+		perf_candlestick_1d = PerformanceMetric.init(pairs)
 		$('.rowblock').hide()
 		cross_res_pair();
 		precompile_regex()
@@ -14961,7 +15028,6 @@ var BinanceEndpoint = function() {
 			})
 		})
 
-
 		return {
 			klines: streams.join('/'),
 			depths: Object.keys(depths).join('/'),
@@ -15017,7 +15083,7 @@ var BinanceEndpoint = function() {
 
 	var update_depth = function(msg) {
 		var depth_header = DepthParser.parse(msg.stream)
-		var pair = depth_header.pair
+		var pair = depth_header.get_pair()
 
 		var bids = msg.data.bids
 		var asks = msg.data.asks
@@ -15065,17 +15131,35 @@ var BinanceEndpoint = function() {
 		$('#' + depth_header.get_info_id() + '-min').text(min_range)
 		$('#' + depth_header.get_info_id() + '-max').text(max_range)
 		depth_layout.width = chart_width
-		Plotly.purge(depth_header.get_chart_id())
+
 		if (init_depth[pair]) {
-			Plotly.plot(depth_header.get_chart_id(), [ask_trace, bid_trace], depth_layout, {displayModeBar: false})
+			if (perf_depth.has_been_rendered(pair) == false) {
+				perf_depth.record_drop(pair)
+				console.log('Dropping message ' + msg.stream)
+				return
+			}
+			Plotly.purge(depth_header.get_chart_id())
+			Plotly.plot(depth_header.get_chart_id(), 
+									[bid_trace, ask_trace], 
+									depth_layout, {displayModeBar: false}).then(function() {
+				perf_depth.complete_render(pair)
+				render_delay(pair)
+			})
 		} else {
-			Plotly.restyle(depth_header.get_chart_id(), [ask_trace, bid_trace])
+			Plotly.plot(depth_header.get_chart_id(), 
+									[bid_trace, ask_trace], 
+									depth_layout, {displayModeBar: false}).then(function() {
+				perf_depth.complete_render(pair)
+			})
 			init_depth[pair] = true
 		}
 	}
 
 	var update_kline = function(_msg) {
 		var gobble_parser = GobbleParser.parse(_msg.stream)
+		var stream_data = gobble_parser.get_data()
+		var resolution = stream_data.resolution
+		var pair = stream_data.pair
 
 		var msg = _msg.data
 		var timestamp_start = parseInt(msg.k.t)
@@ -15087,10 +15171,9 @@ var BinanceEndpoint = function() {
 		var high = msg.k.h
 		var low = msg.k.l
 		var trades = msg.k.n
+		var perf_pointer
 
-		var stream_data = gobble_parser.get_data()
-		var resolution = stream_data.resolution
-		var pair = stream_data.pair
+		
 
 		var block = init_status[resolution][pair]
 		var ptr = block.data
@@ -15107,20 +15190,39 @@ var BinanceEndpoint = function() {
 		//console.log(trace)
 		//console.log(time_start + ' (+' + delta + '): ' + open + ' | ' + high + ' | ' + low + ' | ' + close)
 		switch(resolution) {
-			case '1m': layout.xaxis.tickformat = '%H:%M'; break;
-			case '1h': layout.xaxis.tickformat = '%a'; break;
-			case '1d': layout.xaxis.tickformat = '%m/%d'; break;
+			case '1m': 
+				perf_pointer = perf_candlestick_1m
+				layout.xaxis.tickformat = '%H:%M'; break;
+			case '1h': 
+				perf_pointer = perf_candlestick_1h
+				layout.xaxis.tickformat = '%a'; break;
+			case '1d': 
+				perf_pointer = perf_candlestick_1d
+				layout.xaxis.tickformat = '%m/%d'; break;
 		}
 
 		layout.width = chart_width
 		if (init_status[resolution][pair].init) {
-			Plotly.restyle(gobble_parser.get_div_id(), 'open', [trace.open])
-			Plotly.restyle(gobble_parser.get_div_id(), 'high', [trace.high])
-			Plotly.restyle(gobble_parser.get_div_id(), 'low', [trace.low])
-			Plotly.restyle(gobble_parser.get_div_id(), 'close', [trace.close])
-			Plotly.restyle(gobble_parser.get_div_id(), 'x', [trace.x])
+			if (!perf_pointer.has_been_rendered(pair)) {
+				perf_pointer.record_drop()
+				console.log('Dropping message ' + _msg.stream)
+				return
+			}
+
+			$.when(Plotly.restyle(gobble_parser.get_div_id(), 'open', [trace.open]),
+						 Plotly.restyle(gobble_parser.get_div_id(), 'high', [trace.high]),
+						 Plotly.restyle(gobble_parser.get_div_id(), 'low', [trace.low]),
+						 Plotly.restyle(gobble_parser.get_div_id(), 'close', [trace.close]),
+						 Plotly.restyle(gobble_parser.get_div_id(), 'x', [trace.x]))
+				.done(function() {
+				perf_pointer.complete_render(pair)
+				render_delay(pair)
+			})
 		} else {
-			Plotly.plot(gobble_parser.get_div_id(), [trace], layout, {displayModeBar: false})
+			Plotly.plot(gobble_parser.get_div_id(), [trace], layout, {displayModeBar: false}).then(function() {
+				var avg_delay = perf_pointer.complete_render(pair)
+				//console.log('First instantiation delay ' + _msg.stream + ': ' + avg_delay + ' ms')
+			})
 			init_status[resolution][pair].init = true
 		}
 
@@ -15151,6 +15253,28 @@ var BinanceEndpoint = function() {
 				$('#tether-' + pair).text('Calculating...')
 			}
 		}
+	}
+
+	var render_delay = function(pair) {
+		$('#delay-' + pair).text(get_multi_resolution_delay(pair).toFixed(0) 
+													 + 'ms (' + get_total_drops(pair) + ' drop)')
+	}
+
+	var get_multi_resolution_delay = function(pair) {
+		var delays = perf_candlestick_1m.get_total_delay(pair)
+							 + perf_candlestick_1d.get_total_delay(pair)
+							 + perf_candlestick_1h.get_total_delay(pair)
+		var samples = perf_candlestick_1m.get_total_samples(pair)
+								+ perf_candlestick_1h.get_total_samples(pair)
+								+ perf_candlestick_1d.get_total_samples(pair)
+
+		return delays / samples
+	}
+
+	var get_total_drops = function(pair) {
+		return perf_candlestick_1m.get_drop_count(pair)
+				 + perf_candlestick_1h.get_drop_count(pair)
+				 + perf_candlestick_1d.get_drop_count(pair)
 	}
 
 	var update_static_kline = function() {
@@ -15224,6 +15348,10 @@ var BinanceEndpoint = function() {
 			s +=       '<div class="col-xs-12 colfig">'
 				+          '<span class="static-kline">USDT Equivalent</span>'
 			  +    			 '<span class="static-kline bold pull-right" id="tether-' + pair + '"/>'
+			  +        '</div>'
+			  +        '<div class="col-xs-12 colfig">'
+			  +          '<span class="static-kline">Delay</span>'
+			  +          '<span class="static-kline pull-right" id="delay-' + pair + '"/>'
 			  +        '</div>'
 			s	+=     '</div>'
 				+      '<div class="col-xs-6 colfig">'

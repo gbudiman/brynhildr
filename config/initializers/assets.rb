@@ -13,6 +13,7 @@ Rails.application.config.assets.paths << Rails.root.join('node_modules')
 # folder are already added.
 Rails.application.config.assets.precompile += %w( binance_endpoint.js
 																									Multibox.js
+																									PerformanceMetric.js
 																									jstorage.min.js
 																									plotly-latest.min.js
 																									sprintf.min.js

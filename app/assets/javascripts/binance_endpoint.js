@@ -435,6 +435,12 @@ var BinanceEndpoint = function() {
 			} else {
 				$('#tether-' + pair).text('Calculating...')
 			}
+		} else {
+			if (!isNaN(close)) {
+				$('#tether-' + pair).text('$' + parseFloat(close).toFixed(2))
+			} else {
+				$('#tether-' + pair).text('Calculating...')
+			}
 		}
 	}
 

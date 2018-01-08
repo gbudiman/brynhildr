@@ -54,3 +54,4 @@ function PerformanceMetric(pairs) {
 
 	return this
 }
+;

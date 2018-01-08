@@ -29,11 +29,16 @@ var GobbleParser = function() {
 		return 'kline-' + resolution + '-' + pair
 	}
 
+	var get_macd_id = function() {
+		return 'macd-' + resolution + '-' + pair
+	}
+
 	return {
 		build: build,
 		parse: parse,
 		get_data: get_data,
-		get_div_id: get_div_id
+		get_div_id: get_div_id,
+		get_macd_id: get_macd_id
 	}
 }()
 
@@ -83,6 +88,12 @@ var BinanceEndpoint = function() {
 	var perf_candlestick_1h
 	var perf_candlestick_1d
 	var perf_depth
+	var ema_7
+	var ema_25
+	var ema_12
+	var ema_26
+	var ema_delta
+	var ema_9
 	var linecolor = '#555'
 	var tickfont = {
 		family: 'Exo, sans-serif',
@@ -114,12 +125,42 @@ var BinanceEndpoint = function() {
 			fixedrange: true,
 			gridcolor: linecolor
 		},
+		yaxis2: {
+			overlaying: 'y',
+			showgrid: false
+		},
 		autosize: false,
 		width: chart_width,
 		height: chart_height,
 		hovermode: false,
 		paper_bgcolor: 'rgba(0,0,0,0)',
 		plot_bgcolor: 'rgba(0,0,0,0)',
+	}
+	var macd_layout = {
+		showlegend: false,
+		margin: {
+			l: 8, r: 8, b: 0, t: 0, pad: 0
+		},
+		xaxis: {
+			autorange: true,
+			fixedrange: true,
+			gridcolor: linecolor
+		},
+		yaxis: {
+			autorange: true,
+			fixedrange: true,
+			gridcolor: linecolor
+		},
+		yaxis2: {
+			overlaying: 'y',
+			showgrid: false
+		},
+		autosize: false,
+		width: chart_width,
+		height: chart_height / 4,
+		hovermode: false,
+		paper_bgcolor: 'rgba(0,0,0,0)',
+		plot_bgcolor: 'rgba(0,0,0,0)'
 	}
 	var depth_layout = {
 		showlegend: false,
@@ -159,10 +200,11 @@ var BinanceEndpoint = function() {
 	var init = function(init_pairs) {
 		destroy_sockets()
 		pairs = init_pairs
-		perf_depth = PerformanceMetric.init(pairs)
-		perf_candlestick_1m = PerformanceMetric.init(pairs)
-		perf_candlestick_1h = PerformanceMetric.init(pairs)
-		perf_candlestick_1d = PerformanceMetric.init(pairs)
+		perf_depth = new PerformanceMetric(pairs)
+		perf_candlestick_1m = new PerformanceMetric(pairs)
+		perf_candlestick_1h = new PerformanceMetric(pairs)
+		perf_candlestick_1d = new PerformanceMetric(pairs)
+
 		$('.rowblock').hide()
 		cross_res_pair();
 		precompile_regex()
@@ -224,6 +266,9 @@ var BinanceEndpoint = function() {
 			chart_dict.push('depth-chart-' + pair)
 			$.each(ress, function(_also_junk, res) {
 				chart_dict.push('kline-' + res + '-' + pair)
+				if (res == '1m') {
+					chart_dict.push('macd-' + res + '-' + pair)
+				}
 			})
 		})
 	}
@@ -238,12 +283,31 @@ var BinanceEndpoint = function() {
 		init_depth = {}
 		var streams = new Array()
 		var depths = {}
+		ema_7 = {}
+		ema_25 = {}
+		ema_12 = {}
+		ema_26 = {}
+		ema_delta = {}
+		ema_9 = {}
 		$.each(ress, function(_junk, resolution) {
 			init_status[resolution] = {}
 			static_klines[resolution] = {}
+			ema_7[resolution] = {}
+			ema_25[resolution] = {}
+			ema_12[resolution] = {}
+			ema_26[resolution] = {}
+			ema_delta[resolution] = {}
+			ema_9[resolution] = {}
 
 			$.each(pairs, function(_also_junk, pair) {
 				var gobble_parser = GobbleParser.build(resolution, pair)
+				ema_7[resolution][pair] = null
+				ema_25[resolution][pair] = null
+				ema_12[resolution][pair] = null
+				ema_26[resolution][pair] = null
+				ema_delta[resolution][pair] = null
+				ema_9[resolution][pair] = null
+
 				streams.push(pair + '@kline_' + resolution)
 				depths[pair + '@depth20'] = true
 
@@ -319,8 +383,6 @@ var BinanceEndpoint = function() {
 
 		var bids = msg.data.bids
 		var asks = msg.data.asks
-
-		console.log(msg.data)
 
 		var ask_cum = 0
 		var ask_depth = { x:[], y:[] }
@@ -432,17 +494,32 @@ var BinanceEndpoint = function() {
 		//console.log(time_start + ' (+' + delta + '): ' + open + ' | ' + high + ' | ' + low + ' | ' + close)
 		switch(resolution) {
 			case '1m': 
+				//macd_fast[resolution][pair].push(close, timestamp_start)
+				//console.log(macd_fast[resolution][pair].get_timestamps())
+				
 				perf_pointer = perf_candlestick_1m
 				layout.xaxis.tickformat = '%H:%M'; break;
 			case '1h': 
+				//macd_fast['1h'][pair].push(close, timestamp_start)
 				perf_pointer = perf_candlestick_1h
-				layout.xaxis.tickformat = '%a'; break;
+				layout.xaxis.tickformat = '%a %p'; break;
 			case '1d': 
+				//macd_fast['1d'][pair].push(close, timestamp_start)
 				perf_pointer = perf_candlestick_1d
 				layout.xaxis.tickformat = '%m/%d'; break;
 		}
 
+
+		var e7 = ema_7[resolution][pair].push(close, timestamp_start)
+		var e25 = ema_25[resolution][pair].push(close, timestamp_start)
+		var e12 = ema_12[resolution][pair].push(close, timestamp_start)
+		var e26 = ema_12[resolution][pair].push(close, timestamp_start)
+		//var ed = ema_delta[resolution][pair].push(e12.y[e12.y.length - 1] - e26.y[e26.y.length - 1])
+		var ed = emas_elementwise_subtract(e7.y, e25.y)
+		//var e9 = ema_9[resolution][pair].push(ed.y[ed.y.length - 1])
+
 		layout.width = chart_width
+		macd_layout.width = chart_width
 		if (init_status[resolution][pair].init) {
 			if (!perf_pointer.has_been_rendered(pair)) {
 				perf_pointer.record_drop()
@@ -454,16 +531,36 @@ var BinanceEndpoint = function() {
 						 Plotly.restyle(gobble_parser.get_div_id(), 'high', [trace.high]),
 						 Plotly.restyle(gobble_parser.get_div_id(), 'low', [trace.low]),
 						 Plotly.restyle(gobble_parser.get_div_id(), 'close', [trace.close]),
-						 Plotly.restyle(gobble_parser.get_div_id(), 'x', [trace.x]))
+						 Plotly.restyle(gobble_parser.get_div_id(), 'x', [trace.x]),
+						 Plotly.restyle(gobble_parser.get_div_id(), 'y', [e7.y, e25.y]))
+						 //Plotly.restyle(gobble_parser.get_macd_id(), 'x', [ed.x]),
+						 //Plotly.restyle(gobble_parser.get_macd_id(), 'y', [ed.y, e9.y]))
 				.done(function() {
+				if (resolution == '1m') {
+					Plotly.restyle(gobble_parser.get_macd_id(), 'x', [trace.x])
+					Plotly.restyle(gobble_parser.get_macd_id(), 'y', [ed])
+					Plotly.restyle(gobble_parser.get_macd_id(), 'marker.color', [ed.map(v => v > 0 ? '#49a862' : '#dc4c48')])
+					//Plotly.restyle(gobble_parser.get_macd_id(), 'marker.color', ed.map(v => v > 0 ? '#49a862' : '#dc4c48'))
+				}
 				perf_pointer.complete_render(pair)
 				render_delay(pair)
 			})
 		} else {
-			Plotly.plot(gobble_parser.get_div_id(), [trace], layout, {displayModeBar: false}).then(function() {
+			Plotly.plot(gobble_parser.get_div_id(), [trace, e7, e25], layout, {displayModeBar: false}).then(function() {
 				var avg_delay = perf_pointer.complete_render(pair)
 				//console.log('First instantiation delay ' + _msg.stream + ': ' + avg_delay + ' ms')
 			})
+			if (resolution == '1m') {
+				var ed_data = {
+					x: e7.x,
+					y: ed,
+					type: 'bar',
+					marker: {
+						color: ed.map(v => v > 0 ? '#49a862' : '#dc4c48')
+					}
+				}
+				Plotly.plot(gobble_parser.get_macd_id(), [ed_data], macd_layout, {displayModeBar: false})
+			}
 			init_status[resolution][pair].init = true
 		}
 
@@ -496,9 +593,24 @@ var BinanceEndpoint = function() {
 		}
 	}
 
+	var emas_elementwise_subtract = function(mid, slow) {
+		var vals = new Array()
+		for (var i = 0; i < mid.length; i++) {
+			vals.push(mid[i] - slow[i])
+		}
+
+		return vals
+	}
+
 	var render_delay = function(pair) {
-		$('#delay-' + pair).text(get_multi_resolution_delay(pair).toFixed(0) 
-													 + 'ms (' + get_total_drops(pair) + ' drop)')
+		var num = get_multi_resolution_delay(pair).toFixed(0)
+
+		if (isNaN(num)) {
+			num = '--'
+		} else {
+			num += 'ms'
+		}
+		$('#delay-' + pair).text(num + ' (' + get_total_drops(pair) + ' drop)')
 	}
 
 	var get_multi_resolution_delay = function(pair) {
@@ -599,6 +711,9 @@ var BinanceEndpoint = function() {
 				
 			$.each(ress, function(_also_junk, res) {
 				s	+=     '<div class="col-xs-12 colfig" id="kline-' + res + '-' + pair + '" />'
+				if (res == '1m') {
+				s +=     '<div class="col-xs-12 colfig" id="macd-' + res + '-' + pair + '" />'
+				}
 			})
 			s +=     '</div>'
 			s +=   '</div>'
@@ -614,6 +729,8 @@ var BinanceEndpoint = function() {
 
 	var append_historical_data = function(resolution, pair, data) {
 		var anchor = init_status[resolution][pair].data
+		var ema_feed = new Array()
+		var ema_key = new Array()
 
 		$.each(data, function(_junk, d) {
 			var time_key = d[0]
@@ -625,7 +742,28 @@ var BinanceEndpoint = function() {
 			var trades = d[6]
 
 			anchor[time_key] = { open: open, high: high, low: low, close: close }
+			ema_feed.push(close)
+			ema_key.push(time_key)
 		})
+
+		ema_7[resolution][pair] = new MACD(ema_feed, ema_key, 7, stick_limit)
+		ema_25[resolution][pair] = new MACD(ema_feed, ema_key, 25, stick_limit)
+		ema_12[resolution][pair] = new MACD(ema_feed, ema_key, 12, stick_limit)
+		ema_26[resolution][pair] = new MACD(ema_feed, ema_key, 26, stick_limit)
+
+		var ue12 = ema_12[resolution][pair].get_untruncated_emas()
+		var ue26 = ema_26[resolution][pair].get_untruncated_emas()
+
+		//console.log(ema_12[resolution][pair].get_untruncated_emas().y)
+		//console.log(ema_26[resolution][pair].get_untruncated_emas().y)
+
+		var delta = emas_elementwise_subtract(ue12.y, ue26.y)
+		var sliced_key = ema_key.slice(ue12.y.length * -1)
+
+		ema_delta[resolution][pair] = new MACD(delta, ema_key, 9, stick_limit)
+		ema_9[resolution][pair] = new MACD(ema_delta[resolution][pair].get_untruncated_emas().y, 
+																			 sliced_key, 9, stick_limit)
+		//console.log(ema_9[resolution][pair].get_untruncated_emas().y)
 	}
 
 	var get_fiat_quote_pair = function(pair) {

@@ -1,9 +1,7 @@
-%nav{class: 'navbar navbar-inverse'}
-	%div{class: 'container-fluid navbar-container'}
-		%div{class: 'navbar-header col-xs-12'}
-			%a{class: 'navbar-brand navbar-brand-main', 'data-toggle': 'dropdown', href: '#'} 
-				Brynhildr
-			%select{class: 'selectpicker pull-right', id: 'multibox', 'data-live-search': 'true', multiple: true}
+= render partial: 'donation'
+= render partial: 'help'
+= render partial: 'navbar'
+
 
 %div{id: 'dashboard-table'}
 %div{class: 'row col-xs-12'}
@@ -13,6 +11,7 @@
 = stylesheet_link_tag 'bootstrap-select.min'
 = javascript_include_tag 'sprintf.min'
 = javascript_include_tag 'jstorage.min'
+= javascript_include_tag 'Periphery.js'
 = javascript_include_tag 'PerformanceMetric'
 = javascript_include_tag 'MACD'
 = javascript_include_tag 'bootstrap-select.min'
@@ -25,4 +24,5 @@
 		var multibox = Multibox.init(endpoint)
 
 		endpoint.register_multibox(multibox)
+		Periphery.init()
 	})

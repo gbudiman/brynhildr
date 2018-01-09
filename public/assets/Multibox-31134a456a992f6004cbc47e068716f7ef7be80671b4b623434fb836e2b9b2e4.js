@@ -83,3 +83,4 @@ var Multibox = function() {
 		unhook: unhook
 	}
 }()
+;

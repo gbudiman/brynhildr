@@ -479,6 +479,9 @@ var BinanceEndpoint = function() {
 					backgroundColor: '#333',
 					height: chart_height,
 					spacing: [4,4,4,4],
+					style: {
+						fontFamily: 'Exo'
+					},
 					width: get_proper_chart_width()
 				},
 				legend: { enabled: false },

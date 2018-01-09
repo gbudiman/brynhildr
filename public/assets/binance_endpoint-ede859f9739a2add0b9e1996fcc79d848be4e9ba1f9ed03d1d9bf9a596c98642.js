@@ -85,11 +85,15 @@ var BinanceEndpoint = function() {
 	var fiats = { btcusdt: {},
 								ethusdt: {} }
 	var chart_width = 200
-	var chart_height = 75
+	var chart_height = 80
 	var perf_candlestick_1m
 	var perf_candlestick_1h
 	var perf_candlestick_1d
 	var perf_depth
+	var pair_info
+	var dataframes = {}
+	var ema7frames = {}
+	var ema25frames = {}
 	var ema_7
 	var ema_25
 	var ema_12
@@ -97,6 +101,7 @@ var BinanceEndpoint = function() {
 	var ema_delta
 	var ema_9
 	var message_counts
+	var resize_timer = setTimeout(null, 0)
 	var linecolor = '#555'
 	var tickfont = {
 		family: 'Exo, sans-serif',
@@ -207,19 +212,19 @@ var BinanceEndpoint = function() {
 		multibox = _multibox
 	}
 
-	var init = function(init_pairs, pair_info) {
+	var register_pair_info = function(d) {
+		pair_info = d
+	}
+
+	var init = function(init_pairs) {
 		destroy_sockets()
 		pairs = init_pairs
-		perf_depth = new PerformanceMetric(pairs)
-		perf_candlestick_1m = new PerformanceMetric(pairs)
-		perf_candlestick_1h = new PerformanceMetric(pairs)
-		perf_candlestick_1d = new PerformanceMetric(pairs)
 
 		$('.rowblock').hide()
 		cross_res_pair();
 		precompile_regex()
-		append_dom(pair_info)
-		var streams = preload_historical_data()
+		append_dom()
+		var streams = construct_streams()
 		
 		candle_socket = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams.klines)
 		candle_socket.onopen = function() {
@@ -255,17 +260,26 @@ var BinanceEndpoint = function() {
 	}
 
 	var attach_resize = function() {
-		$(window).on('resize', resize)
+		$(window).on('resize', function(e) {
+			clearTimeout(resize_timer)
+			resize_timer = setTimeout(function() {
+				resize()
+			}, 250)
+		})
 	}
 
 	var get_proper_chart_width = function() {
-		return ($('.rowblock').width() - 32) / ($(window).width() < 992 ? 2 : 2)
+		return ($('.rowblock').width() - 8) / ($(window).width() < 992 ? 2 : 2)
 	}
 
 	var resize = function() {
 		chart_width = get_proper_chart_width()
 		$.each(chart_dict, function(_junk, id) {
-			Plotly.relayout(id, { width: chart_width })
+			//Plotly.relayout(id, { width: chart_width })
+			//console.log(id)
+			var chart = $('#' + id).highcharts()
+			chart.setSize(chart_width, chart_height)
+			//console.log(chart)
 		})
 	}
 
@@ -276,9 +290,9 @@ var BinanceEndpoint = function() {
 			chart_dict.push('depth-chart-' + pair)
 			$.each(ress, function(_also_junk, res) {
 				chart_dict.push('kline-' + res + '-' + pair)
-				if (res == '1m') {
-					chart_dict.push('macd-' + res + '-' + pair)
-				}
+				// if (res == '1m') {
+				// 	chart_dict.push('macd-' + res + '-' + pair)
+				// }
 			})
 		})
 	}
@@ -289,8 +303,7 @@ var BinanceEndpoint = function() {
 		})
 	}
 
-	var preload_historical_data = function() {
-		init_depth = {}
+	var construct_streams = function() {
 		var streams = new Array()
 		var depths = {}
 		ema_7 = {}
@@ -310,6 +323,9 @@ var BinanceEndpoint = function() {
 			ema_delta[resolution] = {}
 			ema_9[resolution] = {}
 			message_counts[resolution] = {}
+			if (dataframes[resolution] == undefined) dataframes[resolution] = {}
+			if (ema7frames[resolution] == undefined) ema7frames[resolution] = {}
+			if (ema25frames[resolution] == undefined) ema25frames[resolution] = {}
 
 			$.each(pairs, function(_also_junk, pair) {
 				var gobble_parser = GobbleParser.build(resolution, pair)
@@ -325,11 +341,12 @@ var BinanceEndpoint = function() {
 				depths[pair + '@depth20'] = true
 
 				static_klines[resolution][pair] = {}
-				init_status[resolution][pair] = {
-					init: false,
-					data: {}
-				}
-				init_depth[pair] = false
+				//dataframes[resolution][pair] = new Array()
+				// init_status[resolution][pair] = {
+				// 	init: false,
+				// 	data: {}
+				// }
+				// init_depth[pair] = false
 
 				get_historical_data(resolution, pair).then(function(data) {
 					append_historical_data(resolution, pair, data)
@@ -434,6 +451,10 @@ var BinanceEndpoint = function() {
 			line: {color: '#49A862'}
 		}
 
+		var hi_ask_trace = ask_trace.x.map(function(e, i) { return [e, ask_trace.y[i]] })
+		var hi_bid_trace = bid_trace.x.map(function(e, i) { return [e, bid_trace.y[i]] })
+
+
 		var min_range = bids[0][0]
 		var max_range = asks[asks.length - 1][0]
 
@@ -449,30 +470,89 @@ var BinanceEndpoint = function() {
 		depth_layout.width = chart_width
 
 		if (init_depth[pair]) {
-			if (perf_depth.has_been_rendered(pair) == false) {
-				perf_depth.record_drop(pair)
-				console.log('Dropping message ' + msg.stream)
-				return
-			}
-			// Plotly.purge(depth_header.get_chart_id())
-			// Plotly.plot(depth_header.get_chart_id(), 
-			// 						z_data, 
-			// 						depth_layout, {displayModeBar: false}).then(function() {
-			var gdiv = depth_header.get_chart_id()
-			Plotly.restyle(gdiv, 'x', [bid_trace.x, ask_trace.x]).then(function() {
-				Plotly.restyle(gdiv, 'y', [bid_trace.y, ask_trace.y]).then(function() {
-					perf_depth.complete_render(pair)
-					render_delay(pair)
-				})
-			})
+			var chart = $('#' + depth_header.get_chart_id()).highcharts()
+			chart.series[0].setData(hi_bid_trace)
+			chart.series[1].setData(hi_ask_trace)
 		} else {
-			Plotly.plot(depth_header.get_chart_id(), 
-									z_data, 
-									depth_layout, {displayModeBar: false}).then(function() {
-				perf_depth.complete_render(pair)
+			Highcharts.stockChart(depth_header.get_chart_id(), {
+				chart: {
+					backgroundColor: '#333',
+					height: chart_height,
+					spacing: [4,4,4,4],
+					width: get_proper_chart_width()
+				},
+				legend: { enabled: false },
+				navigator: { enabled: false },
+				rangeSelector: { enabled: false },
+				scrollbar: { enabled: false },
+				series: [{
+					data: hi_bid_trace,
+					fillColor: 'rgba(73, 168, 98, 0.5)',
+					lineColor: '#49A862',
+					type: 'area',
+					yAxis: 0
+				}, {
+					borderWidth: 0,
+					data: hi_ask_trace,
+					fillColor: 'rgba(220, 76, 72, 0.5)',
+					lineColor: '#DC4C48',
+					type: 'area',
+					yAxis: 0
+				}],
+				tooltip: { enabled: false },
+				xAxis: {
+					labels: {
+						enabled: false
+					},
+					gridLineWidth: 1,
+					gridLineColor: '#555',
+					tickWidth: 0
+				},
+				yAxis: [{
+					labels: {
+						enabled: true,
+						style: {
+							color: '#eee'
+						}
+					},
+					gridLineWidth: 1,
+					gridLineColor: '#555',
+					tickPixelInterval: chart_height / 4
+				}, {
+					labels: {
+						enabled: false
+					}
+				}]
 			})
+
 			init_depth[pair] = true
 		}
+
+		// if (init_depth[pair]) {
+		// 	if (perf_depth.has_been_rendered(pair) == false) {
+		// 		perf_depth.record_drop(pair)
+		// 		console.log('Dropping message ' + msg.stream)
+		// 		return
+		// 	}
+		// 	// Plotly.purge(depth_header.get_chart_id())
+		// 	// Plotly.plot(depth_header.get_chart_id(), 
+		// 	// 						z_data, 
+		// 	// 						depth_layout, {displayModeBar: false}).then(function() {
+		// 	var gdiv = depth_header.get_chart_id()
+		// 	Plotly.restyle(gdiv, 'x', [bid_trace.x, ask_trace.x]).then(function() {
+		// 		Plotly.restyle(gdiv, 'y', [bid_trace.y, ask_trace.y]).then(function() {
+		// 			perf_depth.complete_render(pair)
+		// 			render_delay(pair)
+		// 		})
+		// 	})
+		// } else {
+		// 	Plotly.plot(depth_header.get_chart_id(), 
+		// 							z_data, 
+		// 							depth_layout, {displayModeBar: false}).then(function() {
+		// 		perf_depth.complete_render(pair)
+		// 	})
+		// 	init_depth[pair] = true
+		// }
 	}
 
 	var update_kline = function(_msg) {
@@ -480,41 +560,25 @@ var BinanceEndpoint = function() {
 		var stream_data = gobble_parser.get_data()
 		var resolution = stream_data.resolution
 		var pair = stream_data.pair
-		var update_plot = true
-
-		message_counts[resolution][pair]++
-		switch(resolution) {
-			case '1h':
-				if (message_counts[resolution][pair] % mod_1h != 0) {
-					update_plot = false
-				}
-				break;
-			case '1d':
-				if (message_counts[resolution][pair] % mod_1d != 0) {
-					update_plot = false
-				}
-				break;
-		}
 
 		var msg = _msg.data
 		var timestamp_start = parseInt(msg.k.t)
 		var time_start = new Date(msg.k.t)
 		var current_time = new Date(msg.E)
 		var delta = parseInt((msg.E - msg.k.t) / 1000)
-		var open = msg.k.o
-		var close = msg.k.c
-		var high = msg.k.h
-		var low = msg.k.l
+		var open = parseFloat(msg.k.o)
+		var close = parseFloat(msg.k.c)
+		var high = parseFloat(msg.k.h)
+		var low = parseFloat(msg.k.l)
 		var trades = msg.k.n
-		var perf_pointer
 
-		
+		var dataframe = dataframes[resolution][pair]
 
-		var block = init_status[resolution][pair]
-		var ptr = block.data
-
-		ptr[timestamp_start] = { open: open, high: high, low: low, close: close }
-		var trace = hash_to_array(ptr)
+		if (dataframe == undefined || dataframe.length == 0) {
+			//Historical data is not loaded yet, wait
+			console.log(_msg.stream + ' dropped because historical data not loaded yet')
+			return
+		}
 
 		static_klines[resolution][pair] = {
 			open: open,
@@ -522,120 +586,220 @@ var BinanceEndpoint = function() {
 			trades: trades
 		}
 
-		//console.log(trace)
-		//console.log(time_start + ' (+' + delta + '): ' + open + ' | ' + high + ' | ' + low + ' | ' + close)
-		switch(resolution) {
-			case '1m': 
-				//macd_fast[resolution][pair].push(close, timestamp_start)
-				//console.log(macd_fast[resolution][pair].get_timestamps())
-				
-				perf_pointer = perf_candlestick_1m
-				layout.xaxis.tickformat = '%H:%M'; break;
-			case '1h': 
-				//macd_fast['1h'][pair].push(close, timestamp_start)
-				perf_pointer = perf_candlestick_1h
-				layout.xaxis.tickformat = '%a %p'; break;
-			case '1d': 
-				//macd_fast['1d'][pair].push(close, timestamp_start)
-				perf_pointer = perf_candlestick_1d
-				layout.xaxis.tickformat = '%m/%d'; break;
-		}
-
-
-		var e7 = ema_7[resolution][pair].push(close, timestamp_start)
-		var e25 = ema_25[resolution][pair].push(close, timestamp_start)
-		var e12 = ema_12[resolution][pair].push(close, timestamp_start)
-		var e26 = ema_12[resolution][pair].push(close, timestamp_start)
-		//var ed = ema_delta[resolution][pair].push(e12.y[e12.y.length - 1] - e26.y[e26.y.length - 1])
-		var ed = emas_elementwise_subtract(e7.y, e25.y)
-		//var e9 = ema_9[resolution][pair].push(ed.y[ed.y.length - 1])
-
-		layout.width = chart_width
-		macd_layout.width = chart_width
-		if (update_plot) {
-			//console.log(Date.now() + ': update ' + _msg.stream)
-		} else {
-			//console.log(Date.now() + ': skipping ' + _msg.stream)
-		}
-
-		if (update_plot) {
-			if (init_status[resolution][pair].init) {
-				if (perf_pointer.has_been_rendered(pair) == false) {
-					perf_pointer.record_drop()
-					console.log('Dropping message ' + _msg.stream)
-					return
-				}
-
-				//console.log(Date.now() + ': BEGIN RENDER ' + _msg.stream)
-
-				// $.when(Plotly.restyle(gobble_parser.get_div_id(), 'open', [trace.open]),
-				// 			 Plotly.restyle(gobble_parser.get_div_id(), 'high', [trace.high]),
-				// 			 Plotly.restyle(gobble_parser.get_div_id(), 'low', [trace.low]),
-				// 			 Plotly.restyle(gobble_parser.get_div_id(), 'close', [trace.close]),
-				// 			 Plotly.restyle(gobble_parser.get_div_id(), 'x', [trace.x]),
-				// 			 Plotly.restyle(gobble_parser.get_div_id(), 'y', [e7.y, e25.y]))
-				// 			 //Plotly.restyle(gobble_parser.get_macd_id(), 'x', [ed.x]),
-				// 			 //Plotly.restyle(gobble_parser.get_macd_id(), 'y', [ed.y, e9.y]))
-				// 	.done(function() {
-				// 	// if (resolution == '1m') {
-				// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'x', [trace.x])
-				// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'y', [ed])
-				// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'marker.color', [ed.map(v => v > 0 ? '#49a862' : '#dc4c48')])
-				// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'marker.color', ed.map(v => v > 0 ? '#49a862' : '#dc4c48'))
-				// 	// }
-				// 	perf_pointer.complete_render(pair)
-				// 	render_delay(pair)
-				// 	console.log(Date.now() + ': COMPLETE RENDER ' + _msg.stream)
-				// })
-				var gdiv = gobble_parser.get_div_id()
-				e7.x = trace.x
-				e25.x = trace.x
-				Plotly.restyle(gdiv, 'open', [trace.open]).then(function() {
-					Plotly.restyle(gdiv, 'high', [trace.high]).then(function() {
-						Plotly.restyle(gdiv, 'low', [trace.low]).then(function() {
-							Plotly.restyle(gdiv, 'close', [trace.close]).then(function() {
-								Plotly.restyle(gdiv, 'x', [trace.x]).then(function() {
-									Plotly.restyle(gdiv, 'y', [e7.y, e25.y]).then(function() {
-										perf_pointer.complete_render(pair)
-										render_delay(pair)
-										//console.log(Date.now() + ': COMPLETE RENDER ' + _msg.stream)
-									})
-								})
-							})
-						})
-					})
-				})
-			} else {
-				e7.x = trace.x//e7.x.slice(-1 * stick_limit)
-				e25.x = trace.x//e25.x.slice(-1 * stick_limit)
-
-				Plotly.plot(gobble_parser.get_div_id(), [trace, e7, e25], layout, {displayModeBar: false}).then(function() {
-					perf_pointer.complete_render(pair)
-					//console.log('First instantiation delay ' + _msg.stream + ': ' + avg_delay + ' ms')
-				})
-				// if (resolution == '1m') {
-				// 	var ed_data = {
-				// 		x: e7.x,
-				// 		y: ed,
-				// 		type: 'bar',
-				// 		marker: {
-				// 			color: ed.map(v => v > 0 ? '#49a862' : '#dc4c48')
-				// 		}
-				// 	}
-				// 	Plotly.plot(gobble_parser.get_macd_id(), [ed_data], macd_layout, {displayModeBar: false})
-				// }
-				init_status[resolution][pair].init = true
-			}
-		}
+		var last_entry = dataframe[dataframe.length - 1]
+		var last_timestamp = last_entry[0]
+		var chart = $('#kline-' + resolution + '-' + pair).highcharts()
 		
-		write_usdt_equivalent(pair, close)
+		var chart_min = chart.yAxis[0].min
+		var chart_max = chart.yAxis[0].max
+		
+		var e7 = ema7frames[resolution][pair]
+		var e25 = ema25frames[resolution][pair]
+		e7.push(close, timestamp_start)
+	 	e25.push(close, timestamp_start)
+
+		if (last_timestamp == timestamp_start) {
+			last_entry[4] = close
+
+			// var new_extremes = update_extremes(close, chart_min, chart_max)
+			// if (new_extremes.is_changed) {
+			// 	console.log('changing extremes')
+			// 	chart.yAxis[0].setExtremes(new_extremes.min, new_extremes.max)
+			// }
+		} else {
+			dataframe.push([timestamp_start, open, high, low, close])
+			shifted_out = dataframe.shift()
+
+			// var mmx = min_max_ohlc(dataframe)
+			// chart.yAxis[0].setExtremes(mmx.min, mmx.max)
+		}
+
+		chart.series[0].setData(dataframe)
+		chart.series[1].setData(e7.get_in_highchart_format())
+		chart.series[2].setData(e25.get_in_highchart_format())
+		
+
+		write_usdt_equivalent(pair, close)	
 	}
+
+	var update_extremes = function(actual, _min, _max) {
+		var min = _min
+		var max = _max
+		var is_changed = false
+		if (actual < min) {
+			min = actual
+			is_changed = true
+		}
+
+		if (actual > max) {
+			max = actual
+			is_changed = true
+		}
+
+		return {
+			min: min,
+			max: max,
+			is_changed: is_changed
+		}
+	}
+
+
+	// var update_kline = function(_msg) {
+	// 	var gobble_parser = GobbleParser.parse(_msg.stream)
+	// 	var stream_data = gobble_parser.get_data()
+	// 	var resolution = stream_data.resolution
+	// 	var pair = stream_data.pair
+	// 	var update_plot = true
+
+	// 	message_counts[resolution][pair]++
+	// 	switch(resolution) {
+	// 		case '1h':
+	// 			if (message_counts[resolution][pair] % mod_1h != 0) {
+	// 				update_plot = false
+	// 			}
+	// 			break;
+	// 		case '1d':
+	// 			if (message_counts[resolution][pair] % mod_1d != 0) {
+	// 				update_plot = false
+	// 			}
+	// 			break;
+	// 	}
+
+	// 	var msg = _msg.data
+	// 	var timestamp_start = parseInt(msg.k.t)
+	// 	var time_start = new Date(msg.k.t)
+	// 	var current_time = new Date(msg.E)
+	// 	var delta = parseInt((msg.E - msg.k.t) / 1000)
+	// 	var open = msg.k.o
+	// 	var close = msg.k.c
+	// 	var high = msg.k.h
+	// 	var low = msg.k.l
+	// 	var trades = msg.k.n
+	// 	var perf_pointer
+
+		
+
+	// 	var block = init_status[resolution][pair]
+	// 	var ptr = block.data
+
+	// 	ptr[timestamp_start] = { open: open, high: high, low: low, close: close }
+	// 	var trace = hash_to_array(ptr)
+
+		
+	// 	//console.log(trace)
+	// 	//console.log(time_start + ' (+' + delta + '): ' + open + ' | ' + high + ' | ' + low + ' | ' + close)
+	// 	switch(resolution) {
+	// 		case '1m': 
+	// 			//macd_fast[resolution][pair].push(close, timestamp_start)
+	// 			//console.log(macd_fast[resolution][pair].get_timestamps())
+				
+	// 			perf_pointer = perf_candlestick_1m
+	// 			layout.xaxis.tickformat = '%H:%M'; break;
+	// 		case '1h': 
+	// 			//macd_fast['1h'][pair].push(close, timestamp_start)
+	// 			perf_pointer = perf_candlestick_1h
+	// 			layout.xaxis.tickformat = '%a %p'; break;
+	// 		case '1d': 
+	// 			//macd_fast['1d'][pair].push(close, timestamp_start)
+	// 			perf_pointer = perf_candlestick_1d
+	// 			layout.xaxis.tickformat = '%m/%d'; break;
+	// 	}
+
+
+	// 	var e7 = ema_7[resolution][pair].push(close, timestamp_start)
+	// 	var e25 = ema_25[resolution][pair].push(close, timestamp_start)
+	// 	var e12 = ema_12[resolution][pair].push(close, timestamp_start)
+	// 	var e26 = ema_12[resolution][pair].push(close, timestamp_start)
+	// 	//var ed = ema_delta[resolution][pair].push(e12.y[e12.y.length - 1] - e26.y[e26.y.length - 1])
+	// 	var ed = emas_elementwise_subtract(e7.y, e25.y)
+	// 	//var e9 = ema_9[resolution][pair].push(ed.y[ed.y.length - 1])
+
+	// 	layout.width = chart_width
+	// 	macd_layout.width = chart_width
+	// 	if (update_plot) {
+	// 		//console.log(Date.now() + ': update ' + _msg.stream)
+	// 	} else {
+	// 		//console.log(Date.now() + ': skipping ' + _msg.stream)
+	// 	}
+
+	// 	if (update_plot) {
+	// 		if (init_status[resolution][pair].init) {
+	// 			if (perf_pointer.has_been_rendered(pair) == false) {
+	// 				perf_pointer.record_drop()
+	// 				console.log('Dropping message ' + _msg.stream)
+	// 				return
+	// 			}
+
+	// 			//console.log(Date.now() + ': BEGIN RENDER ' + _msg.stream)
+
+	// 			// $.when(Plotly.restyle(gobble_parser.get_div_id(), 'open', [trace.open]),
+	// 			// 			 Plotly.restyle(gobble_parser.get_div_id(), 'high', [trace.high]),
+	// 			// 			 Plotly.restyle(gobble_parser.get_div_id(), 'low', [trace.low]),
+	// 			// 			 Plotly.restyle(gobble_parser.get_div_id(), 'close', [trace.close]),
+	// 			// 			 Plotly.restyle(gobble_parser.get_div_id(), 'x', [trace.x]),
+	// 			// 			 Plotly.restyle(gobble_parser.get_div_id(), 'y', [e7.y, e25.y]))
+	// 			// 			 //Plotly.restyle(gobble_parser.get_macd_id(), 'x', [ed.x]),
+	// 			// 			 //Plotly.restyle(gobble_parser.get_macd_id(), 'y', [ed.y, e9.y]))
+	// 			// 	.done(function() {
+	// 			// 	// if (resolution == '1m') {
+	// 			// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'x', [trace.x])
+	// 			// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'y', [ed])
+	// 			// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'marker.color', [ed.map(v => v > 0 ? '#49a862' : '#dc4c48')])
+	// 			// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'marker.color', ed.map(v => v > 0 ? '#49a862' : '#dc4c48'))
+	// 			// 	// }
+	// 			// 	perf_pointer.complete_render(pair)
+	// 			// 	render_delay(pair)
+	// 			// 	console.log(Date.now() + ': COMPLETE RENDER ' + _msg.stream)
+	// 			// })
+	// 			var gdiv = gobble_parser.get_div_id()
+	// 			e7.x = trace.x
+	// 			e25.x = trace.x
+	// 			Plotly.restyle(gdiv, 'open', [trace.open]).then(function() {
+	// 				Plotly.restyle(gdiv, 'high', [trace.high]).then(function() {
+	// 					Plotly.restyle(gdiv, 'low', [trace.low]).then(function() {
+	// 						Plotly.restyle(gdiv, 'close', [trace.close]).then(function() {
+	// 							Plotly.restyle(gdiv, 'x', [trace.x]).then(function() {
+	// 								Plotly.restyle(gdiv, 'y', [e7.y, e25.y]).then(function() {
+	// 									perf_pointer.complete_render(pair)
+	// 									render_delay(pair)
+	// 									//console.log(Date.now() + ': COMPLETE RENDER ' + _msg.stream)
+	// 								})
+	// 							})
+	// 						})
+	// 					})
+	// 				})
+	// 			})
+	// 		} else {
+	// 			e7.x = trace.x//e7.x.slice(-1 * stick_limit)
+	// 			e25.x = trace.x//e25.x.slice(-1 * stick_limit)
+
+	// 			Plotly.plot(gobble_parser.get_div_id(), [trace, e7, e25], layout, {displayModeBar: false}).then(function() {
+	// 				perf_pointer.complete_render(pair)
+	// 				//console.log('First instantiation delay ' + _msg.stream + ': ' + avg_delay + ' ms')
+	// 			})
+	// 			// if (resolution == '1m') {
+	// 			// 	var ed_data = {
+	// 			// 		x: e7.x,
+	// 			// 		y: ed,
+	// 			// 		type: 'bar',
+	// 			// 		marker: {
+	// 			// 			color: ed.map(v => v > 0 ? '#49a862' : '#dc4c48')
+	// 			// 		}
+	// 			// 	}
+	// 			// 	Plotly.plot(gobble_parser.get_macd_id(), [ed_data], macd_layout, {displayModeBar: false})
+	// 			// }
+	// 			init_status[resolution][pair].init = true
+	// 		}
+	// 	}
+		
+	// 	write_usdt_equivalent(pair, close)
+	// }
 
 	var write_usdt_equivalent = function(pair, close) {
 		var fiat_pair = get_fiat_quote_pair(pair)
 		var write_target = $('#tether-' + pair)
 		var text_out = null
-		
+
 		if (fiat_pair) {
 			var fiat_tether = fiats[fiat_pair + 'usdt']
 			var equi_tether = close * fiat_tether.close
@@ -721,7 +885,7 @@ var BinanceEndpoint = function() {
 		})
 	}
 
-	var append_dom = function(pair_info) {
+	var append_dom = function() {
 		var colfig = 'colfig col-xs-12'
 		var s = ''
 
@@ -734,7 +898,7 @@ var BinanceEndpoint = function() {
 
 			var base_pair = pair_info[pair].base
 			var quote_pair = pair_info[pair].quote
-			s += '<div class="rowblock col-xs-12 col-md-6" id="cell-' + pair + '">'
+			s += '<div class="rowblock col-xs-12 col-md-6 col-lg-3" id="cell-' + pair + '">'
 		    +    '<div class="colfig col-xs-12">'
 				+      '<div class="col-xs-12 colfig pairtitle">'
 				+        '<span class="pairname">' + base_pair.toUpperCase() + '</span>'
@@ -767,10 +931,10 @@ var BinanceEndpoint = function() {
 			// 	+          '<span class="static-kline">USDT Equivalent</span>'
 			//   +    			 '<span class="static-kline bold pull-right" id="tether-' + pair + '"/>'
 			//   +        '</div>'
-			s +=        '<div class="col-xs-12 colfig">'
-			  +          '<span class="static-kline">Delay</span>'
-			  +          '<span class="static-kline pull-right" id="delay-' + pair + '"/>'
-			  +        '</div>'
+			// s +=        '<div class="col-xs-12 colfig">'
+			//   +          '<span class="static-kline">Delay</span>'
+			//   +          '<span class="static-kline pull-right" id="delay-' + pair + '"/>'
+			//   +        '</div>'
 			s	+=     '</div>'
 				+      '<div class="col-xs-6 colfig">'
 				
@@ -793,42 +957,161 @@ var BinanceEndpoint = function() {
 	}
 
 	var append_historical_data = function(resolution, pair, data) {
-		var anchor = init_status[resolution][pair].data
+		//var anchor = init_status[resolution][pair].data
+		dataframes[resolution][pair] = new Array()
+		var anchor = dataframes[resolution][pair]
 		var ema_feed = new Array()
 		var ema_key = new Array()
 
 		$.each(data, function(_junk, d) {
-			var time_key = d[0]
-			var open = d[1]
-			var high = d[2]
-			var low = d[3]
-			var close = d[4]
+			var time_key = parseInt(d[0])
+			var open = parseFloat(d[1])
+			var high = parseFloat(d[2])
+			var low = parseFloat(d[3])
+			var close = parseFloat(d[4])
 			var volume = d[5]
 			var trades = d[6]
 
-			anchor[time_key] = { open: open, high: high, low: low, close: close }
+			//anchor[time_key] = { open: open, high: high, low: low, close: close }
+			anchor.push([time_key, open, high, low, close])
 			ema_feed.push(close)
 			ema_key.push(time_key)
 		})
 
-		ema_7[resolution][pair] = new MACD(ema_feed, ema_key, 7, stick_limit)
-		ema_25[resolution][pair] = new MACD(ema_feed, ema_key, 25, stick_limit)
-		ema_12[resolution][pair] = new MACD(ema_feed, ema_key, 12, stick_limit)
-		ema_26[resolution][pair] = new MACD(ema_feed, ema_key, 26, stick_limit)
+		// ema_7[resolution][pair] = new MACD(ema_feed, ema_key, 7, stick_limit)
+		// ema_25[resolution][pair] = new MACD(ema_feed, ema_key, 25, stick_limit)
+		// ema_12[resolution][pair] = new MACD(ema_feed, ema_key, 12, stick_limit)
+		// ema_26[resolution][pair] = new MACD(ema_feed, ema_key, 26, stick_limit)
 
-		var ue12 = ema_12[resolution][pair].get_untruncated_emas()
-		var ue26 = ema_26[resolution][pair].get_untruncated_emas()
+		// var ue12 = ema_12[resolution][pair].get_untruncated_emas()
+		// var ue26 = ema_26[resolution][pair].get_untruncated_emas()
 
 		//console.log(ema_12[resolution][pair].get_untruncated_emas().y)
 		//console.log(ema_26[resolution][pair].get_untruncated_emas().y)
 
-		var delta = emas_elementwise_subtract(ue12.y, ue26.y)
-		var sliced_key = ema_key.slice(ue12.y.length * -1)
+		// var delta = emas_elementwise_subtract(ue12.y, ue26.y)
+		// var sliced_key = ema_key.slice(ue12.y.length * -1)
 
-		ema_delta[resolution][pair] = new MACD(delta, ema_key, 9, stick_limit)
-		ema_9[resolution][pair] = new MACD(ema_delta[resolution][pair].get_untruncated_emas().y, 
-																			 sliced_key, 9, stick_limit)
+		// ema_delta[resolution][pair] = new MACD(delta, ema_key, 9, stick_limit)
+		// ema_9[resolution][pair] = new MACD(ema_delta[resolution][pair].get_untruncated_emas().y, 
+		// 																	 sliced_key, 9, stick_limit)
 		//console.log(ema_9[resolution][pair].get_untruncated_emas().y)
+
+		dataframes[resolution][pair] = dataframes[resolution][pair].slice(-1 * stick_limit)
+		ema7frames[resolution][pair] = new MACD(ema_feed, ema_key, 7, stick_limit)
+		ema25frames[resolution][pair] = new MACD(ema_feed, ema_key, 25, stick_limit)
+
+		// if (resolution == '1d') {
+		// 	console.log(dataframes[resolution][pair])
+		// 	console.log(ema7frames[resolution][pair].get_in_highchart_format())
+		// }
+
+		var m_ohlc = min_max_ohlc(dataframes[resolution][pair])
+		//console.log(m_ohlc)
+
+		Highcharts.stockChart('kline-' + resolution + '-' + pair, {
+			chart: {
+				backgroundColor: '#333',
+				height: chart_height,
+				width: get_proper_chart_width(),
+				spacing: [0,0,0,0],
+				style: {
+					fontFamily: 'Exo'
+				}
+			},
+			legend: {
+				enabled: false
+			},
+			navigator: {
+				enabled: false
+			},
+			rangeSelector: {
+				enabled: false
+			},
+			scrollbar: {
+				enabled: false
+			},
+			series: [{
+				type: 'candlestick',
+				data: dataframes[resolution][pair],
+				color: '#DC4C48',
+				upColor: '#49A862',
+				lineColor: '#DC4C48',
+				upLineColor: '#49A862',
+				softThreshold: true,
+				yAxis: 0
+			}, {
+				data: ema7frames[resolution][pair].get_in_highchart_format(),
+				yAxis: 0,
+				lineColor: '#FFA56B',
+				lineWidth: 2
+			}, {
+				data: ema25frames[resolution][pair].get_in_highchart_format(),
+				yAxis: 0,
+				lineColor: '#B780E3',
+				lineWidth: 2
+			}],
+			tooltip: { enabled: false },
+			xAxis: {
+				lineColor: '#555',
+				lineWidth: 0,
+				gridLineWidth: 1,
+				gridLineColor: '#555',
+				tickColor: '#555',
+				tickWidth: 0,
+				labels: {
+					formatter: function() {
+						switch(resolution) {
+							case '1m': return moment(this.value).format('H:mm'); break
+							case '1h': return moment(this.value).format('ddd A'); break
+							case '1d': return moment(this.value).format('M/D'); break
+						}
+					},
+					style: {
+						color: '#eee'
+					}
+				}
+			}, 
+			yAxis: [{
+				labels: {
+					enabled: false
+				},
+				lineColor: '#555',
+				gridLineWidth: 1,
+				gridLineColor: '#555',
+				endOnTick: false,
+				startOnTick: false,
+				//tickAmount: 64
+				tickPixelInterval: chart_height / 4
+			}]
+		})
+	}
+
+	var get_timestamp_format = function(res) {
+		switch(res) {
+			case '1m': return '%H:%M'
+			case '1h': return '%a %p'
+			case '1d': return '%m/%d'
+		}
+	}
+
+	var min_max_ohlc = function(a) {
+		var anchor_min = 999999
+		var anchor_max = 0
+
+		for (var i = 0; i < a.length; i++) {
+			for (var j = 1; j < a[i].length; j++) {
+				var val = a[i][j]
+
+				if (val < anchor_min) anchor_min = val
+				if (val > anchor_max) anchor_max = val
+			}
+		}
+
+		return {
+			min: anchor_min,
+			max: anchor_max
+		}
 	}
 
 	var get_fiat_quote_pair = function(pair) {
@@ -872,6 +1155,7 @@ var BinanceEndpoint = function() {
 	return {
 		attach: attach,
 		register_multibox: register_multibox,
+		register_pair_info: register_pair_info,
 		init: init
 	}
 }()

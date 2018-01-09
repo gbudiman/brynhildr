@@ -1,4 +1,5 @@
-function MACD(close_prices, _timestamps, _period, stick_length) {
+function MACD(close_prices, _timestamps, _period, _stick_length) {
+	var stick_length = _stick_length
 	var period = _period
 	var slice = -(stick_length + period)
 	//var slice = -60
@@ -71,6 +72,18 @@ function MACD(close_prices, _timestamps, _period, stick_length) {
 				width: 2
 			}
 		}
+	}
+
+	this.get_in_highchart_format = function() {
+		var x = timestamps.slice(-1 * stick_length)
+		var y = emas.slice(-1 * stick_length)
+		var a = new Array()
+
+		for (var i = 0; i < x.length; i++) {
+			a.push([x[i], y[i]])
+		}
+
+		return a
 	}
 
 	this.get_untruncated_emas = function() {

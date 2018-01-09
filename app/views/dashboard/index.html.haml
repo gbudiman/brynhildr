@@ -2,20 +2,23 @@
 = render partial: 'help'
 = render partial: 'navbar'
 
-
+= javascript_include_tag 'https://code.highcharts.com/stock/highstock.js'
 %div{id: 'dashboard-table'}
 %div{class: 'row col-xs-12'}
 %div{class: 'well well-lg', id: 'welcome-well'}
 
 = stylesheet_link_tag 'style'
 = stylesheet_link_tag 'bootstrap-select.min'
+//= stylesheet_link_tag 'highcharts'
 = javascript_include_tag 'sprintf.min'
+//= javascript_include_tag 'highstock.js'
+= javascript_include_tag 'moment.js'
 = javascript_include_tag 'jstorage.min'
 = javascript_include_tag 'Periphery.js'
 = javascript_include_tag 'PerformanceMetric'
 = javascript_include_tag 'MACD'
 = javascript_include_tag 'bootstrap-select.min'
-= javascript_include_tag 'plotly-latest.min'
+//= javascript_include_tag 'plotly-latest.min'
 = javascript_include_tag 'binance_endpoint'
 = javascript_include_tag 'Multibox'
 :javascript

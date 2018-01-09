@@ -47,3 +47,4 @@ var Periphery = function() {
 		init: init
 	}
 }()
+;

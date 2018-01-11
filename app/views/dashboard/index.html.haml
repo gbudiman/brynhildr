@@ -2,7 +2,14 @@
 = render partial: 'help'
 = render partial: 'navbar'
 
+%div{class: 'pull-right'}
+	Frame delay:
+	%span{id: 'frame-delay'}
+	ms (
+	%span{id: 'frame-drop'}
+	drops)
 = javascript_include_tag 'https://code.highcharts.com/stock/highstock.js'
+%div{class: 'col-xs-12'}
 %div{id: 'dashboard-table'}
 %div{class: 'row col-xs-12'}
 %div{class: 'well well-lg', id: 'welcome-well'}
@@ -12,10 +19,12 @@
 //= stylesheet_link_tag 'highcharts'
 = javascript_include_tag 'sprintf.min'
 //= javascript_include_tag 'highstock.js'
-= javascript_include_tag 'moment.js'
+= javascript_include_tag 'moment'
 = javascript_include_tag 'jstorage.min'
-= javascript_include_tag 'Periphery.js'
-= javascript_include_tag 'PerformanceMetric'
+= javascript_include_tag 'Periphery'
+= javascript_include_tag 'CoolNumeric'
+= javascript_include_tag 'FrameWatch'
+//= javascript_include_tag 'PerformanceMetric'
 = javascript_include_tag 'MACD'
 = javascript_include_tag 'bootstrap-select.min'
 //= javascript_include_tag 'plotly-latest.min'

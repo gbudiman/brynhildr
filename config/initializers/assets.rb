@@ -16,6 +16,8 @@ Rails.application.config.assets.precompile += %w( binance_endpoint.js
 																									PerformanceMetric.js
 																									MACD.js
 																									Periphery.js
+																									CoolNumeric.js
+																									FrameWatch.js
 																									moment.js
 																									jstorage.min.js
 																									plotly-latest.min.js

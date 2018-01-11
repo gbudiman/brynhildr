@@ -518,7 +518,7 @@ var BinanceEndpoint = function() {
 	 	var time_delta = Date.now() - current_time
 		if (last_timestamp == timestamp_start) {
 			last_entry[4] = close
-			if (time_delta > 1) {
+			if (time_delta < 3000) {
 				FrameWatch.add_rendered(time_delta)
 				render_chart(chart, time_delta, dataframe, e7, e25)
 			} else {

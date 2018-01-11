@@ -954,7 +954,7 @@ var BinanceEndpoint = function() {
 					fontFamily: 'Exo'
 				}
 			},
-			//credits: false,
+			credits: false,
 			legend: {
 				enabled: false
 			},

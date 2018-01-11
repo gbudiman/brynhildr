@@ -430,8 +430,7 @@ var BinanceEndpoint = function() {
 			frame_watch.add_dropped()
 			// simply trigger fetch for historical data
 			// and set queue flag to true
-			if (candlestick_queue[resolution][pair] == undefined ||
-					candlestick_queue[resolution][pair] == false) {
+			if (!candlestick_queue[resolution][pair]) {
 				candlestick_queue[resolution][pair] = true
 				get_historical_data(resolution, pair).then(function(data) {
 					append_historical_data(resolution, pair, data)
@@ -906,3 +905,4 @@ var BinanceEndpoint = function() {
 		init: init
 	}
 }()
+;

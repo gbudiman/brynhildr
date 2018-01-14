@@ -1,0 +1,2 @@
+class Dailydatum < ApplicationRecord
+end

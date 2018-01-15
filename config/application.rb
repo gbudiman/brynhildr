@@ -4,7 +4,7 @@ require 'dotenv'
 require 'rails/all'
 require 'open-uri'
 
-Dotenv.load('env.env')
+Dotenv.load('env.env') if Rails.env != 'production'
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)

@@ -28,7 +28,11 @@ class TaskMaster
 		loop do
 			runtime = Object.const_get(task).send(:parse, execute_query: true)
 			sleep_time = period - runtime
-			puts "Executed in #{runtime}ms - sleeping for #{sleep_time}ms"
+
+			s_task = sprintf('%16s', task)
+			s_runtime = sprintf('%5.0f', runtime)
+			s_sleep = sprintf('%8.0f', sleep_time)
+			puts "[#{s_task}] Executed: #{s_runtime}ms | Slack: #{s_sleep}ms"
 
 			if sleep_time > 0
 				sleep(sleep_time / 1000)

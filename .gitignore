@@ -12,6 +12,7 @@ config/database.yml
 *.orig
 rerun.txt
 pickle-email-*.html
+env.env
 
 # TODO Comment out this rule if you are OK with secrets being uploaded to the repo
 config/initializers/secret_token.rb

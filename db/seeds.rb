@@ -7,4 +7,5 @@
 #   Character.create(name: 'Luke', movie: movies.first)
 
 Exchange.create([{exchange_name: 'bithumb'},
-								 {exchange_name: 'coinone'}])
+								 {exchange_name: 'coinone'},
+								 {exchange_name: 'currency_layer'}])

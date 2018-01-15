@@ -9,4 +9,7 @@ class DashboardController < ApplicationController
 	def get_exchange_info
 		render json: Preloader.get_exchange_info
 	end
+
+	def ticker
+	end
 end

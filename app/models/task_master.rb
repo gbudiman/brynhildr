@@ -2,7 +2,7 @@ class TaskMaster
 	@@tasks = {
 		'Bithumb': 1,
 		'Coinone': 1,
-		'CurrencyLayer': 3600
+		#'CurrencyLayer': 3600
 	}
 
 	def self.run

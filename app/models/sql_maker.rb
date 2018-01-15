@@ -11,13 +11,13 @@ class SqlMaker
 	  											 	 				     'volume = excluded.volume, ' \
 		  											 				     'updated_at = excluded.updated_at'
  
-	def initialize exchange_name:
+	def initialize exchange_name:, execute_query:
 		@exchange_id = Exchange.where(exchange_name: exchange_name).first.id
 		@q = []
 
 		yield self
 
-		self.exec
+		if execute_query then self.exec end
 	end
 
 	def push base_currency:, quote_currency:, o: 0, h: 0, l: 0, c:, v: 0, mod:

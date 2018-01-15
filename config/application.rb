@@ -1,6 +1,6 @@
 require_relative 'boot'
 
-require 'dotenv'
+require 'dotenv' if Rails.env != 'production'
 require 'rails/all'
 require 'open-uri'
 

@@ -15074,6 +15074,8 @@ var BinanceEndpoint = function() {
 	var mod_1d = 7
 	var stick_limit = 32
 	var hard_limit = 100
+	var candlestick_queue = {}
+	var depth_queue = {}
 	var dashboard_table = $('#dashboard-table')
 	var init_status = {}
 	var init_depth = {}
@@ -15108,9 +15110,11 @@ var BinanceEndpoint = function() {
 	var resize_timer = setTimeout(null, 0)
 	var candle_socket
 	var depth_socket
+	var local_ticker = {}
 	
 	var attach = function() {
 		frame_watch = FrameWatch.init()
+		subscribe_to_local_ticker()
 		setInterval(function() {
 			var fw = frame_watch.get_stats()
 			var avg = fw.sum / fw.count
@@ -15129,6 +15133,18 @@ var BinanceEndpoint = function() {
 
 	var register_pair_info = function(d) {
 		pair_info = d
+	}
+
+	var subscribe_to_local_ticker = function() {
+		(function() {
+			App.cable.subscriptions.create('TickerChannel', {
+				received: function(data) {
+					var exchange_name = data.exchange
+					local_ticker[data.exchange] = data.data
+				}
+			})
+		}).call(this)
+		
 	}
 
 	var init = function(init_pairs) {
@@ -15189,14 +15205,14 @@ var BinanceEndpoint = function() {
 	}
 
 	var resize = function() {
-		chart_width = get_proper_chart_width()
-		$.each(chart_dict, function(_junk, id) {
-			//Plotly.relayout(id, { width: chart_width })
-			//console.log(id)
-			var chart = $('#' + id).highcharts()
-			chart.setSize(chart_width, chart_height)
-			//console.log(chart)
-		})
+		setTimeout(function() {
+			chart_width = get_proper_chart_width()
+			$.each(chart_dict, function(_junk, id) {
+				var chart = $('#' + id).highcharts()
+				chart.setSize(chart_width, chart_height)
+			})
+		}, 250)
+		
 	}
 
 	var cross_res_pair = function() {
@@ -15239,6 +15255,7 @@ var BinanceEndpoint = function() {
 			ema_delta[resolution] = {}
 			ema_9[resolution] = {}
 			message_counts[resolution] = {}
+			if (candlestick_queue[resolution] == undefined) candlestick_queue[resolution] = {}
 			if (dataframes[resolution] == undefined) dataframes[resolution] = {}
 			if (ema7frames[resolution] == undefined) ema7frames[resolution] = {}
 			if (ema25frames[resolution] == undefined) ema25frames[resolution] = {}
@@ -15257,12 +15274,6 @@ var BinanceEndpoint = function() {
 				depths[pair + '@depth20'] = true
 
 				static_klines[resolution][pair] = {}
-				//dataframes[resolution][pair] = new Array()
-				// init_status[resolution][pair] = {
-				// 	init: false,
-				// 	data: {}
-				// }
-				// init_depth[pair] = false
 
 				get_historical_data(resolution, pair).then(function(data) {
 					append_historical_data(resolution, pair, data)
@@ -15288,44 +15299,19 @@ var BinanceEndpoint = function() {
 		})
 	}
 
-	var hash_to_array = function(x) {
-		var time = new Array()
-		var open = new Array()
-		var high = new Array()
-		var low = new Array()
-		var close = new Array()
-
-		var time_keys = Object.keys(x).sort()
-
-		$.each(time_keys.slice(-1 * stick_limit), function(_junk, time_key) {
-			var data = x[time_key]
-
-			time.push(new Date(parseInt(time_key)))
-			open.push(data.open)
-			close.push(data.close)
-			high.push(data.high)
-			low.push(data.low)
-		})
-
-		if (time_keys.length > hard_limit) delete x[time_keys[0]]
-
-		return {
-			x: time,
-			close: close,
-			high: high,
-			low: low,
-			open: open,
-			type: 'candlestick',
-			xaxis: 'x',
-			yaxis: 'y',
-			increasing: { line: {color: '#49A862'}},
-			decreasing: { line: {color: '#DC4C48' }}
-		}
-	}
-
 	var update_depth = function(msg) {
 		var depth_header = DepthParser.parse(msg.stream)
 		var pair = depth_header.get_pair()
+		//console.log(msg)
+		//var current_time = new Date(msg.E)
+		//var delta = Date.now() - current_time
+
+		// if (delta > 3000) {
+		// 	frame_watch.add_dropped()
+		// 	return
+		// } else {
+		// 	frame_watch.add_rendered(delta)
+		// }
 
 		var bids = msg.data.bids
 		var asks = msg.data.asks
@@ -15373,13 +15359,7 @@ var BinanceEndpoint = function() {
 
 		var min_range = bids[0][0]
 		var max_range = asks[asks.length - 1][0]
-
-		// console.log('bids')
-		// console.log(bid_trace)
-		// console.log('asks')
-		// console.log(ask_trace)
 		var z_data = [bid_trace, ask_trace]
-		//console.log(z_data)
 
 		$('#' + depth_header.get_info_id() + '-min').text(min_range)
 		$('#' + depth_header.get_info_id() + '-max').text(max_range)
@@ -15447,32 +15427,6 @@ var BinanceEndpoint = function() {
 
 			init_depth[pair] = true
 		}
-
-		// if (init_depth[pair]) {
-		// 	if (perf_depth.has_been_rendered(pair) == false) {
-		// 		perf_depth.record_drop(pair)
-		// 		console.log('Dropping message ' + msg.stream)
-		// 		return
-		// 	}
-		// 	// Plotly.purge(depth_header.get_chart_id())
-		// 	// Plotly.plot(depth_header.get_chart_id(), 
-		// 	// 						z_data, 
-		// 	// 						depth_layout, {displayModeBar: false}).then(function() {
-		// 	var gdiv = depth_header.get_chart_id()
-		// 	Plotly.restyle(gdiv, 'x', [bid_trace.x, ask_trace.x]).then(function() {
-		// 		Plotly.restyle(gdiv, 'y', [bid_trace.y, ask_trace.y]).then(function() {
-		// 			perf_depth.complete_render(pair)
-		// 			render_delay(pair)
-		// 		})
-		// 	})
-		// } else {
-		// 	Plotly.plot(depth_header.get_chart_id(), 
-		// 							z_data, 
-		// 							depth_layout, {displayModeBar: false}).then(function() {
-		// 		perf_depth.complete_render(pair)
-		// 	})
-		// 	init_depth[pair] = true
-		// }
 	}
 
 	var update_kline = function(_msg) {
@@ -15485,6 +15439,39 @@ var BinanceEndpoint = function() {
 		var timestamp_start = parseInt(msg.k.t)
 		var time_start = new Date(msg.k.t)
 		var current_time = new Date(msg.E)
+
+		// check if lagging behind by more than 8s
+		// don't waste time processing backlogged data
+		
+		if (Date.now() - current_time > 8000) {
+			frame_watch.add_dropped()
+			// simply trigger fetch for historical data
+			// and set queue flag to true
+			if (candlestick_queue[resolution][pair] == undefined ||
+					candlestick_queue[resolution][pair] == false) {
+				candlestick_queue[resolution][pair] = true
+				get_historical_data(resolution, pair).then(function(data) {
+					append_historical_data(resolution, pair, data)
+				})
+			}
+
+			return
+		}
+
+
+		if (candlestick_queue[resolution][pair]) {
+			if (Date.now() - current_time < 3000) {
+				// once lag is less than 3s, disable flag
+				candlestick_queue[resolution][pair] = false
+			} else {
+				frame_watch.add_dropped()
+				// as long as the queue flag is true, code returns here, saving time
+				return
+			}
+		}
+
+
+		//}
 		var delta = parseInt((msg.E - msg.k.t) / 1000)
 		var open = parseFloat(msg.k.o)
 		var close = parseFloat(msg.k.c)
@@ -15510,8 +15497,6 @@ var BinanceEndpoint = function() {
 		var last_timestamp = last_entry[0]
 		var chart = $('#kline-' + resolution + '-' + pair).highcharts()
 		
-		// var chart_min = chart.yAxis[0].min
-		// var chart_max = chart.yAxis[0].max
 		
 		var e7 = ema7frames[resolution][pair]
 		var e25 = ema25frames[resolution][pair]
@@ -15521,36 +15506,69 @@ var BinanceEndpoint = function() {
 	 	var time_delta = Date.now() - current_time
 		if (last_timestamp == timestamp_start) {
 			last_entry[4] = close
-			if (time_delta > 1) {
-				FrameWatch.add_rendered(time_delta)
+			if (time_delta < 3000) {
+				frame_watch.add_rendered(time_delta)
 				render_chart(chart, time_delta, dataframe, e7, e25)
 			} else {
-				FrameWatch.add_dropped()
+				frame_watch.add_dropped()
 			}
 		} else {
 			dataframe.push([timestamp_start, open, high, low, close])
 			dataframe.shift()
 
-			FrameWatch.add_rendered(time_delta)
+			frame_watch.add_rendered(time_delta)
 			render_chart(chart, time_delta, dataframe, e7, e25)
 		}
 
-		// //console.log(current_time - Date.now())
-		// var time_delta = Date.now() - current_time
-		// //console.log(time_delta)
+		write_usdt_equivalent(pair, close)	
+		update_local_ticker(pair)
+	}
 
-		// if (time_delta < 3000) {
-		// 	FrameWatch.add_rendered(time_delta)
-		// 	// no need to render data beyond 2s late. User probably was AFK
-		//  chart.series[0].setData(dataframe)
-		// 	chart.series[1].setData(e7.get_in_highchart_format())
-		// 	chart.series[2].setData(e25.get_in_highchart_format())
-		// } else {
-		// 	FrameWatch.add_dropped()
-		// }
+	var update_local_ticker = function(pair) {
+		// console.log(pair)
+		// var p_bithumb = local_ticker['bithumb']
+		// var p_coinone = local_ticker['coinone']
+		var l_pairs = {
+			bithumb: local_ticker['bithumb'],
+			coinone: local_ticker['coinone']
+		}
+
+		var l_test = l_pairs.bithumb
+		var base_currency = pair.slice(0, 3)
+
+		if (l_test[pair.slice(0, 3)] == undefined) {
+			base_currency = pair.slice(0, 4)
+			if (l_test[pair.slice(0, 4)] == undefined) {
+				base_currency = pair.slice(0, 5)
+			}
+		} 
+
 		
 
-		write_usdt_equivalent(pair, close)	
+		$.each(l_pairs, function(exchange, data) {
+			var d = l_pairs[exchange]
+			if (data[base_currency] == undefined) return true
+			var ohlc = l_pairs[exchange][base_currency]
+
+			$.each(['open', 'high', 'low', 'close', 'volume'], function(_junk, x) {
+				var base_dom_id = '#local-' + x + '-' + exchange
+				var value = ohlc[x]
+
+				if (x != 'volume') {
+					//console.log(local_ticker['currency_layer'])
+					var forex_value = local_ticker['currency_layer']['krw']
+					value /= forex_value
+					//console.log(forex_value)
+					$(base_dom_id).text('$' + value.toFixed(2))
+				} else {
+					$(base_dom_id).text(value)
+				}
+
+				
+			})
+		})
+
+
 	}
 
 	var render_chart = function(chart, delta, xframe, e7, e25) {
@@ -15558,179 +15576,6 @@ var BinanceEndpoint = function() {
 		chart.series[1].setData(e7.get_in_highchart_format())
 		chart.series[2].setData(e25.get_in_highchart_format())
 	}
-
-	var update_extremes = function(actual, _min, _max) {
-		var min = _min
-		var max = _max
-		var is_changed = false
-		if (actual < min) {
-			min = actual
-			is_changed = true
-		}
-
-		if (actual > max) {
-			max = actual
-			is_changed = true
-		}
-
-		return {
-			min: min,
-			max: max,
-			is_changed: is_changed
-		}
-	}
-
-
-	// var update_kline = function(_msg) {
-	// 	var gobble_parser = GobbleParser.parse(_msg.stream)
-	// 	var stream_data = gobble_parser.get_data()
-	// 	var resolution = stream_data.resolution
-	// 	var pair = stream_data.pair
-	// 	var update_plot = true
-
-	// 	message_counts[resolution][pair]++
-	// 	switch(resolution) {
-	// 		case '1h':
-	// 			if (message_counts[resolution][pair] % mod_1h != 0) {
-	// 				update_plot = false
-	// 			}
-	// 			break;
-	// 		case '1d':
-	// 			if (message_counts[resolution][pair] % mod_1d != 0) {
-	// 				update_plot = false
-	// 			}
-	// 			break;
-	// 	}
-
-	// 	var msg = _msg.data
-	// 	var timestamp_start = parseInt(msg.k.t)
-	// 	var time_start = new Date(msg.k.t)
-	// 	var current_time = new Date(msg.E)
-	// 	var delta = parseInt((msg.E - msg.k.t) / 1000)
-	// 	var open = msg.k.o
-	// 	var close = msg.k.c
-	// 	var high = msg.k.h
-	// 	var low = msg.k.l
-	// 	var trades = msg.k.n
-	// 	var perf_pointer
-
-		
-
-	// 	var block = init_status[resolution][pair]
-	// 	var ptr = block.data
-
-	// 	ptr[timestamp_start] = { open: open, high: high, low: low, close: close }
-	// 	var trace = hash_to_array(ptr)
-
-		
-	// 	//console.log(trace)
-	// 	//console.log(time_start + ' (+' + delta + '): ' + open + ' | ' + high + ' | ' + low + ' | ' + close)
-	// 	switch(resolution) {
-	// 		case '1m': 
-	// 			//macd_fast[resolution][pair].push(close, timestamp_start)
-	// 			//console.log(macd_fast[resolution][pair].get_timestamps())
-				
-	// 			perf_pointer = perf_candlestick_1m
-	// 			layout.xaxis.tickformat = '%H:%M'; break;
-	// 		case '1h': 
-	// 			//macd_fast['1h'][pair].push(close, timestamp_start)
-	// 			perf_pointer = perf_candlestick_1h
-	// 			layout.xaxis.tickformat = '%a %p'; break;
-	// 		case '1d': 
-	// 			//macd_fast['1d'][pair].push(close, timestamp_start)
-	// 			perf_pointer = perf_candlestick_1d
-	// 			layout.xaxis.tickformat = '%m/%d'; break;
-	// 	}
-
-
-	// 	var e7 = ema_7[resolution][pair].push(close, timestamp_start)
-	// 	var e25 = ema_25[resolution][pair].push(close, timestamp_start)
-	// 	var e12 = ema_12[resolution][pair].push(close, timestamp_start)
-	// 	var e26 = ema_12[resolution][pair].push(close, timestamp_start)
-	// 	//var ed = ema_delta[resolution][pair].push(e12.y[e12.y.length - 1] - e26.y[e26.y.length - 1])
-	// 	var ed = emas_elementwise_subtract(e7.y, e25.y)
-	// 	//var e9 = ema_9[resolution][pair].push(ed.y[ed.y.length - 1])
-
-	// 	layout.width = chart_width
-	// 	macd_layout.width = chart_width
-	// 	if (update_plot) {
-	// 		//console.log(Date.now() + ': update ' + _msg.stream)
-	// 	} else {
-	// 		//console.log(Date.now() + ': skipping ' + _msg.stream)
-	// 	}
-
-	// 	if (update_plot) {
-	// 		if (init_status[resolution][pair].init) {
-	// 			if (perf_pointer.has_been_rendered(pair) == false) {
-	// 				perf_pointer.record_drop()
-	// 				console.log('Dropping message ' + _msg.stream)
-	// 				return
-	// 			}
-
-	// 			//console.log(Date.now() + ': BEGIN RENDER ' + _msg.stream)
-
-	// 			// $.when(Plotly.restyle(gobble_parser.get_div_id(), 'open', [trace.open]),
-	// 			// 			 Plotly.restyle(gobble_parser.get_div_id(), 'high', [trace.high]),
-	// 			// 			 Plotly.restyle(gobble_parser.get_div_id(), 'low', [trace.low]),
-	// 			// 			 Plotly.restyle(gobble_parser.get_div_id(), 'close', [trace.close]),
-	// 			// 			 Plotly.restyle(gobble_parser.get_div_id(), 'x', [trace.x]),
-	// 			// 			 Plotly.restyle(gobble_parser.get_div_id(), 'y', [e7.y, e25.y]))
-	// 			// 			 //Plotly.restyle(gobble_parser.get_macd_id(), 'x', [ed.x]),
-	// 			// 			 //Plotly.restyle(gobble_parser.get_macd_id(), 'y', [ed.y, e9.y]))
-	// 			// 	.done(function() {
-	// 			// 	// if (resolution == '1m') {
-	// 			// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'x', [trace.x])
-	// 			// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'y', [ed])
-	// 			// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'marker.color', [ed.map(v => v > 0 ? '#49a862' : '#dc4c48')])
-	// 			// 	// 	Plotly.restyle(gobble_parser.get_macd_id(), 'marker.color', ed.map(v => v > 0 ? '#49a862' : '#dc4c48'))
-	// 			// 	// }
-	// 			// 	perf_pointer.complete_render(pair)
-	// 			// 	render_delay(pair)
-	// 			// 	console.log(Date.now() + ': COMPLETE RENDER ' + _msg.stream)
-	// 			// })
-	// 			var gdiv = gobble_parser.get_div_id()
-	// 			e7.x = trace.x
-	// 			e25.x = trace.x
-	// 			Plotly.restyle(gdiv, 'open', [trace.open]).then(function() {
-	// 				Plotly.restyle(gdiv, 'high', [trace.high]).then(function() {
-	// 					Plotly.restyle(gdiv, 'low', [trace.low]).then(function() {
-	// 						Plotly.restyle(gdiv, 'close', [trace.close]).then(function() {
-	// 							Plotly.restyle(gdiv, 'x', [trace.x]).then(function() {
-	// 								Plotly.restyle(gdiv, 'y', [e7.y, e25.y]).then(function() {
-	// 									perf_pointer.complete_render(pair)
-	// 									render_delay(pair)
-	// 									//console.log(Date.now() + ': COMPLETE RENDER ' + _msg.stream)
-	// 								})
-	// 							})
-	// 						})
-	// 					})
-	// 				})
-	// 			})
-	// 		} else {
-	// 			e7.x = trace.x//e7.x.slice(-1 * stick_limit)
-	// 			e25.x = trace.x//e25.x.slice(-1 * stick_limit)
-
-	// 			Plotly.plot(gobble_parser.get_div_id(), [trace, e7, e25], layout, {displayModeBar: false}).then(function() {
-	// 				perf_pointer.complete_render(pair)
-	// 				//console.log('First instantiation delay ' + _msg.stream + ': ' + avg_delay + ' ms')
-	// 			})
-	// 			// if (resolution == '1m') {
-	// 			// 	var ed_data = {
-	// 			// 		x: e7.x,
-	// 			// 		y: ed,
-	// 			// 		type: 'bar',
-	// 			// 		marker: {
-	// 			// 			color: ed.map(v => v > 0 ? '#49a862' : '#dc4c48')
-	// 			// 		}
-	// 			// 	}
-	// 			// 	Plotly.plot(gobble_parser.get_macd_id(), [ed_data], macd_layout, {displayModeBar: false})
-	// 			// }
-	// 			init_status[resolution][pair].init = true
-	// 		}
-	// 	}
-		
-	// 	write_usdt_equivalent(pair, close)
-	// }
 
 	var write_usdt_equivalent = function(pair, close) {
 		var fiat_pair = get_fiat_quote_pair(pair)
@@ -15872,7 +15717,25 @@ var BinanceEndpoint = function() {
 			//   +          '<span class="static-kline">Delay</span>'
 			//   +          '<span class="static-kline pull-right" id="delay-' + pair + '"/>'
 			//   +        '</div>'
-			s	+=     '</div>'
+			s +=       '<div class="col-xs-2 colfig" />'
+			  +        '<div class="col-xs-5 colfig">Bithumb</div>'
+			  +        '<div class="col-xs-5 colfig">Coinone</div>'
+			  +        '<div class="col-xs-2 colfig">O</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-open-bithumb">--</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-open-coinone">--</div>'
+			  +        '<div class="col-xs-2 colfig">H</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-high-bithumb">--</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-high-coinone">--</div>'			  
+			  +        '<div class="col-xs-2 colfig">L</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-low-bithumb">--</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-low-coinone">--</div>'			  
+			  +        '<div class="col-xs-2 colfig">C</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-close-bithumb">--</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-close-coinone">--</div>'			  
+			  +        '<div class="col-xs-2 colfig">V</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-volume-bithumb">--</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-volume-coinone">--</div>'			  
+			  +      '</div>'
 				+      '<div class="col-xs-6 colfig">'
 				
 			$.each(ress, function(_also_junk, res) {
@@ -15934,6 +15797,7 @@ var BinanceEndpoint = function() {
 		// 																	 sliced_key, 9, stick_limit)
 		//console.log(ema_9[resolution][pair].get_untruncated_emas().y)
 
+		//candlestick_queue[resolution][pair] = true
 		dataframes[resolution][pair] = dataframes[resolution][pair].slice(-1 * stick_limit)
 		ema7frames[resolution][pair] = new MACD(ema_feed, ema_key, 7, stick_limit)
 		ema25frames[resolution][pair] = new MACD(ema_feed, ema_key, 25, stick_limit)
@@ -15957,7 +15821,7 @@ var BinanceEndpoint = function() {
 					fontFamily: 'Exo'
 				}
 			},
-			//credits: false,
+			credits: false,
 			legend: {
 				enabled: false
 			},
@@ -16728,6 +16592,14 @@ this.setWidth(),this.$lis&&this.$searchbox.trigger("propertychange"),this.$eleme
   this.App || (this.App = {});
 
   App.cable = ActionCable.createConsumer();
+
+}).call(this);
+(function() {
+  App.ticker = App.cable.subscriptions.create("TickerChannel", {
+    connected: function() {},
+    disconnected: function() {},
+    received: function(data) {}
+  });
 
 }).call(this);
 (function() {

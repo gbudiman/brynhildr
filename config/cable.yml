@@ -8,4 +8,4 @@ redis: &redis_heroku
 
 development: *redis
 test: *redis
-production: *redis
+production: *redis_heroku

@@ -4,7 +4,7 @@ redis: &redis
 
 redis: &redis_heroku
   adapter: redis
-  url: ENV['REDIS_URL']
+  url: <%= ENV['REDIS_URL'] %>
 
 development: *redis
 test: *redis

@@ -6,4 +6,4 @@ App.ticker = App.cable.subscriptions.create "TickerChannel",
     # Called when the subscription has been terminated by the server
 
   received: (data) ->
-    console.log(data)
+    # console.log(data)

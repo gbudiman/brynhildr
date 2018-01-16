@@ -107,9 +107,11 @@ var BinanceEndpoint = function() {
 	var resize_timer = setTimeout(null, 0)
 	var candle_socket
 	var depth_socket
+	var local_ticker = {}
 	
 	var attach = function() {
 		frame_watch = FrameWatch.init()
+		subscribe_to_local_ticker()
 		setInterval(function() {
 			var fw = frame_watch.get_stats()
 			var avg = fw.sum / fw.count
@@ -128,6 +130,18 @@ var BinanceEndpoint = function() {
 
 	var register_pair_info = function(d) {
 		pair_info = d
+	}
+
+	var subscribe_to_local_ticker = function() {
+		(function() {
+			App.cable.subscriptions.create('TickerChannel', {
+				received: function(data) {
+					var exchange_name = data.exchange
+					local_ticker[data.exchange] = data.data
+				}
+			})
+		}).call(this)
+		
 	}
 
 	var init = function(init_pairs) {
@@ -188,14 +202,14 @@ var BinanceEndpoint = function() {
 	}
 
 	var resize = function() {
-		chart_width = get_proper_chart_width()
-		$.each(chart_dict, function(_junk, id) {
-			//Plotly.relayout(id, { width: chart_width })
-			//console.log(id)
-			var chart = $('#' + id).highcharts()
-			chart.setSize(chart_width, chart_height)
-			//console.log(chart)
-		})
+		setTimeout(function() {
+			chart_width = get_proper_chart_width()
+			$.each(chart_dict, function(_junk, id) {
+				var chart = $('#' + id).highcharts()
+				chart.setSize(chart_width, chart_height)
+			})
+		}, 250)
+		
 	}
 
 	var cross_res_pair = function() {
@@ -504,33 +518,60 @@ var BinanceEndpoint = function() {
 		}
 
 		write_usdt_equivalent(pair, close)	
+		update_local_ticker(pair)
+	}
+
+	var update_local_ticker = function(pair) {
+		// console.log(pair)
+		// var p_bithumb = local_ticker['bithumb']
+		// var p_coinone = local_ticker['coinone']
+		var l_pairs = {
+			bithumb: local_ticker['bithumb'],
+			coinone: local_ticker['coinone']
+		}
+
+		var l_test = l_pairs.bithumb
+		var base_currency = pair.slice(0, 3)
+
+		if (l_test[pair.slice(0, 3)] == undefined) {
+			base_currency = pair.slice(0, 4)
+			if (l_test[pair.slice(0, 4)] == undefined) {
+				base_currency = pair.slice(0, 5)
+			}
+		} 
+
+		
+
+		$.each(l_pairs, function(exchange, data) {
+			var d = l_pairs[exchange]
+			if (data[base_currency] == undefined) return true
+			var ohlc = l_pairs[exchange][base_currency]
+
+			$.each(['open', 'high', 'low', 'close', 'volume'], function(_junk, x) {
+				var base_dom_id = '#local-' + x + '-' + exchange
+				var value = ohlc[x]
+
+				if (x != 'volume') {
+					//console.log(local_ticker['currency_layer'])
+					var forex_value = local_ticker['currency_layer']['krw']
+					value /= forex_value
+					//console.log(forex_value)
+					$(base_dom_id).text('$' + value.toFixed(2))
+				} else {
+					$(base_dom_id).text(value)
+				}
+
+				
+			})
+		})
+
+
 	}
 
 	var render_chart = function(chart, delta, xframe, e7, e25) {
 		chart.series[0].setData(xframe)
 		chart.series[1].setData(e7.get_in_highchart_format())
 		chart.series[2].setData(e25.get_in_highchart_format())
-	}
-
-	var update_extremes = function(actual, _min, _max) {
-		var min = _min
-		var max = _max
-		var is_changed = false
-		if (actual < min) {
-			min = actual
-			is_changed = true
-		}
-
-		if (actual > max) {
-			max = actual
-			is_changed = true
-		}
-
-		return {
-			min: min,
-			max: max,
-			is_changed: is_changed
-		}
 	}
 
 	var write_usdt_equivalent = function(pair, close) {
@@ -673,7 +714,25 @@ var BinanceEndpoint = function() {
 			//   +          '<span class="static-kline">Delay</span>'
 			//   +          '<span class="static-kline pull-right" id="delay-' + pair + '"/>'
 			//   +        '</div>'
-			s	+=     '</div>'
+			s +=       '<div class="col-xs-2 colfig" />'
+			  +        '<div class="col-xs-5 colfig">Bithumb</div>'
+			  +        '<div class="col-xs-5 colfig">Coinone</div>'
+			  +        '<div class="col-xs-2 colfig">O</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-open-bithumb">--</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-open-coinone">--</div>'
+			  +        '<div class="col-xs-2 colfig">H</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-high-bithumb">--</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-high-coinone">--</div>'			  
+			  +        '<div class="col-xs-2 colfig">L</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-low-bithumb">--</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-low-coinone">--</div>'			  
+			  +        '<div class="col-xs-2 colfig">C</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-close-bithumb">--</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-close-coinone">--</div>'			  
+			  +        '<div class="col-xs-2 colfig">V</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-volume-bithumb">--</div>'
+			  +        '<div class="col-xs-5 colfig local-ticker" id="local-volume-coinone">--</div>'			  
+			  +      '</div>'
 				+      '<div class="col-xs-6 colfig">'
 				
 			$.each(ress, function(_also_junk, res) {

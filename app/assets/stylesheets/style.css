@@ -165,3 +165,9 @@ div.colfig {
 	margin-bottom: -15px;
 	width: 100%;
 }
+
+.local-ticker {
+	text-align: right;
+	font-family: 'Inconsolata', monospace;
+	font-size: 125%;
+}

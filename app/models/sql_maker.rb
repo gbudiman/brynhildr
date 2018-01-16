@@ -32,16 +32,32 @@ class SqlMaker
 
 	def exec
 		sql = @@template_prefix + @q.join(', ') + @@template_postfix
-
 		ActiveRecord::Base.connection.execute(sql)
 		websocket_message = {
 			timestamp: @last_mod,
 			exchange: @exchange_name,
-			data: Dailydatum.where(exchange_id: @exchange_id,
-														 modulus_timestamp: Time.at(@last_mod).to_datetime)
-											.select('open, high, low, close')
+			data: generate_message
 		}
 
-		ActionCable.server.broadcast 'ticker_channel', message: websocket_message
+		ActionCable.server.broadcast 'ticker_channel', websocket_message
+	end
+
+	def generate_message
+		h = {}
+		Dailydatum.where(exchange_id: @exchange_id,
+										 modulus_timestamp: Time.at(@last_mod).to_datetime)
+						  .select('base_currency, quote_currency, open, high, low, close, volume')
+						  .each do |r|
+			h[r.base_currency] = {
+				quote_currency: r['quote_currency'],
+				open: r['open'],
+				high: r['high'],
+				low: r['low'],
+				close: r['close'],
+				volume: r['volume']
+			}
+		end
+
+		return h
 	end
 end

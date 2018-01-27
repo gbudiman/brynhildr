@@ -22,28 +22,4 @@ class CurrencyLayer < OneSidedExchange
 			end
 		end
 	end
-
-	def self.placebo
-		time_it do
-			websocket_message = {
-				data: self.generate_message,
-				exchange: @@exchange_name
-			}
-
-			ActionCable.server.broadcast 'ticker_channel', websocket_message
-		end
-	end
-
-	def self.generate_message
-		h = {}
-		Dailydatum.joins(:exchange)
-							.where('exchanges.exchange_name' => @@exchange_name)
-							.where('dailydata.modulus_timestamp' => Time.at(DateModulator.modulus(timestamp: Time.now.to_i)).to_datetime)
-							.select('quote_currency, close')
-							.each do |r|
-			h[r['quote_currency']] = r['close']
-		end
-
-		return h
-	end
 end

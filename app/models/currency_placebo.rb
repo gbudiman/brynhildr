@@ -14,18 +14,16 @@ class CurrencyPlacebo < CurrencyLayer
 
 	def self.generate_message
 		h = {}
-		hts = Time.at(0)
+		hts = Dailydatum.joins(:exchange)
+										.where('exchanges.exchange_name' => @@exchange_name)
+										.maximum(:modulus_timestamp)
 
 		Dailydatum.joins(:exchange)
 							.where('exchanges.exchange_name' => @@exchange_name)
-							.where('dailydata.modulus_timestamp' => 
-								Dailydatum.joins(:exchange)
-													.where('exchanges.exchange_name' => @@exchange_name)
-													.maximum(:modulus_timestamp))
+							.where('dailydata.modulus_timestamp' => hts)
 							.select('quote_currency, close, exchanges.updated_at AS xts')
 							.each do |r|
 			h[r['quote_currency']] = r['close']
-			hts = [r['xts'], hts].max
 		end
 
 		return {

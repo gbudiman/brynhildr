@@ -139,10 +139,25 @@ var BinanceEndpoint = function() {
 				received: function(data) {
 					var exchange_name = data.exchange
 					local_ticker[data.exchange] = data.data
+
+					if (data.exchange == 'currency_layer') {
+						update_currency_ticker(data)
+					}
 				}
 			})
 		}).call(this)
-		
+	}
+
+	var update_currency_ticker = function(data) {
+		console.log(data)
+		var s = new Array()
+
+		$.each(['krw'], function(_junk, d) {
+			s.push(data.data[d].toFixed(2) + ' ' + d.toUpperCase())
+		})
+
+		$('#currency-text').text(s.join(' | '))
+		$('#forex-last-update').text(moment(data.timestamp).fromNow())
 	}
 
 	var init = function(init_pairs) {

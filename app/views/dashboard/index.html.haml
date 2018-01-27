@@ -8,8 +8,14 @@
 	ms (
 	%span{id: 'frame-drop'}
 	drops)
-= javascript_include_tag 'https://code.highcharts.com/stock/highstock.js'
 %div{class: 'col-xs-12'}
+%div{class: 'pull-right'}
+	1 USD =
+	%span{id: 'currency-text'} ...
+%div{class: 'col-xs-12'}
+%div{class: 'pull-right'}
+	Forex last update
+	%span{id: 'forex-last-update'} ...
 %div{id: 'dashboard-table'}
 %div{class: 'row col-xs-12'}
 %div{class: 'well well-lg', id: 'welcome-well'}
@@ -19,6 +25,7 @@
 //= stylesheet_link_tag 'highcharts'
 = javascript_include_tag 'sprintf.min'
 //= javascript_include_tag 'highstock.js'
+= javascript_include_tag 'https://code.highcharts.com/stock/highstock.js'
 = javascript_include_tag 'moment'
 = javascript_include_tag 'jstorage.min'
 = javascript_include_tag 'Periphery'

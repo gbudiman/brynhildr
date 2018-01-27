@@ -17,6 +17,7 @@ class CurrencyPlacebo < CurrencyLayer
 		hts = Dailydatum.joins(:exchange)
 										.where('exchanges.exchange_name' => @@exchange_name)
 										.maximum(:modulus_timestamp)
+		hx = nil
 
 		Dailydatum.joins(:exchange)
 							.where('exchanges.exchange_name' => @@exchange_name)
@@ -24,11 +25,12 @@ class CurrencyPlacebo < CurrencyLayer
 							.select('quote_currency, close, exchanges.updated_at AS xts')
 							.each do |r|
 			h[r['quote_currency']] = r['close']
+			hx = r['xts']
 		end
 
 		return {
 			data: h,
-			timestamp: hts
+			timestamp: hx
 		}
 	end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20180114124146) do
+ActiveRecord::Schema.define(version: 20180127132718) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -20,9 +20,9 @@ ActiveRecord::Schema.define(version: 20180114124146) do
     t.bigint "exchange_id", null: false
     t.string "base_currency", null: false
     t.string "quote_currency", null: false
-    t.float "open", null: false
-    t.float "high", null: false
-    t.float "low", null: false
+    t.float "open"
+    t.float "high"
+    t.float "low"
     t.float "close", null: false
     t.float "volume", null: false
     t.datetime "created_at", null: false
@@ -35,6 +35,7 @@ ActiveRecord::Schema.define(version: 20180114124146) do
     t.string "exchange_name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["exchange_name"], name: "index_exchanges_on_exchange_name", unique: true
   end
 
   add_foreign_key "dailydata", "exchanges"

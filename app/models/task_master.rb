@@ -4,6 +4,7 @@ class TaskMaster
 		'Coinone': 1,
 		'CurrencyLayer': 3600,
 		'CurrencyPlacebo': 5,
+		'Korbit': 3,
 	}
 
 	_e = Exchange

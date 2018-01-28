@@ -6,6 +6,6 @@
 #   movies = Movie.create([{ name: 'Star Wars' }, { name: 'Lord of the Rings' }])
 #   Character.create(name: 'Luke', movie: movies.first)
 
-['bithumb', 'coinone', 'currency_layer', 'korbit'].each do |xchg|
+['bithumb', 'coinone', 'currency_layer', 'korbit', 'gdax'].each do |xchg|
 	Exchange.find_or_create_by! exchange_name: xchg
 end

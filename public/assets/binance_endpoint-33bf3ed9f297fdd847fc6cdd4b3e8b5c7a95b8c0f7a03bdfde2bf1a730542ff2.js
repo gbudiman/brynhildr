@@ -1143,3 +1143,4 @@ var BinanceEndpoint = function() {
 		init: init
 	}
 }()
+;

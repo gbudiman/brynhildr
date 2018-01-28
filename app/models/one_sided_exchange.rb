@@ -16,4 +16,8 @@ class OneSidedExchange
 		diff_msec = (time_end - time_start) * 1000
 		return diff_msec
 	end
+
+	def self.get_exchange_name
+		return self.name
+	end
 end

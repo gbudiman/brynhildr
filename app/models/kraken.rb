@@ -1,0 +1,2 @@
+class Kraken < OneSidedExchange
+end

@@ -5,6 +5,7 @@ class TaskMaster
 		'CurrencyLayer': 3600,
 		'CurrencyPlacebo': 5,
 		'Korbit': 3,
+		'Gdax': 0 							# uses websocket, no need to poll
 	}
 
 	_e = Exchange
@@ -48,6 +49,8 @@ class TaskMaster
 			time_parent task: task, period: period do
 				Thread.new { self.create_fiber task: task, timestamp: Time.now, period: period }
 			end
+
+			if period == 0 then break end
 		end
 	end
 
@@ -69,6 +72,12 @@ class TaskMaster
 		rescue SocketError
 			puts "[#{s_task}] [ ERR] Socket Error"
 		end
+	end
+
+	def self.websocket_report exchange:, task:
+		s_task = sprintf('%16s', "#{exchange}::#{task}")
+
+		puts "[#{s_task}] [  OK]"
 	end
 
 	def self.cl_placebo

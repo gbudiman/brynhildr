@@ -1,0 +1,1 @@
+worker rake task_master:run
